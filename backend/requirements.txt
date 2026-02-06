@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+google-generative-ai
+e2b-code-interpreter
+python-dotenv
+requests
