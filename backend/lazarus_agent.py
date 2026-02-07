@@ -751,6 +751,15 @@ except Exception as e:
                     except Exception as e:
                         print(f"[*] Backend Health Check {i+1}/20: Exception - {str(e)[:50]}")
                         pass
+                    
+                    # Early log check after 5 attempts to diagnose issues faster
+                    if i == 4:
+                        try:
+                            early_log = self.sandbox.files.read("app.log")
+                            if early_log and len(early_log) > 10:
+                                print(f"[DEBUG] Early Log Check (Backend may have crashed):\n{early_log[:300]}")
+                        except:
+                            pass
 
                 if not backend_success:
                     print("[!] Backend FAILED to start. Retrieving logs...")
