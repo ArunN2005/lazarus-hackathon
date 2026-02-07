@@ -112,6 +112,36 @@ class LazarusEngine:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    def scan_repository(self, repo_url: str) -> list:
+        """ Fetches the file tree of the remote repository using GitHub API. """
+        if not self.github_token:
+             return ["(GITHUB_TOKEN missing - Simulating Scan)"]
+
+        try:
+            # Parse owner/repo
+            match = re.search(r"github\.com/([^/]+)/([^/.]+)", repo_url)
+            if not match:
+                return ["(Invalid URL - Simulating Scan)"]
+            
+            owner, repo_name = match.groups()
+            api_url = f"https://api.github.com/repos/{owner}/{repo_name}/git/trees/main?recursive=1"
+            
+            headers = {
+                "Authorization": f"token {self.github_token}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+            
+            resp = requests.get(api_url, headers=headers)
+            if resp.status_code == 200:
+                tree = resp.json().get('tree', [])
+                # Return list of paths
+                return [item['path'] for item in tree if item['type'] == 'blob']
+            else:
+                 return [f"(API Error {resp.status_code} - Simulating Scan)"]
+                 
+        except Exception as e:
+            return [f"(Scan Error: {str(e)})"]
+
     def _call_gemini(self, prompt: str, model: str = None) -> str:
         """Raw HTTP call to Gemini API to bypass SDK installation issues."""
         if not self.api_key:
@@ -238,6 +268,14 @@ class LazarusEngine:
         2.  **Execution Requirements**: 
             -   The `backend/main.py` MUST be production-ready.
             -   **CRITICAL**: `uvicorn.run(app, host="0.0.0.0", port=8000)`. DO NOT USE `127.0.0.1` or `localhost`.
+            -   **CRITICAL**: The backend MUST serve `modernized_stack/preview.html` at the ROOT output `GET /`.
+            -   Implementation:
+                ```python
+                @app.get("/")
+                def read_root():
+                    with open("modernized_stack/preview.html", "r") as f:
+                        return HTMLResponse(content=f.read())
+                ```
             -   Include `requirements.txt` if needed (e.g., fastapi, uvicorn).
         3.  **Preview**: 
             -   Generate `modernized_stack/preview.html`.
@@ -347,6 +385,10 @@ class LazarusEngine:
         # 1. Plan
         yield emit_log("Initiating Deep Scan of Legacy Repository...")
         
+        # ACTUAL SCAN
+        scanned_files = self.scan_repository(repo_url)
+        yield emit_debug(f"[DEBUG] Scanned Repository Files:\n" + "\n".join(scanned_files[:20]) + ("\n... (truncated)" if len(scanned_files) > 20 else ""))
+
         # Check for error in plan
         plan = self.generate_modernization_plan(repo_url, instructions)
         yield emit_debug(f"[DEBUG] Generated Plan:\n{plan}")
