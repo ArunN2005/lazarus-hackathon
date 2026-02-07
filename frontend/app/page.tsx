@@ -40,10 +40,28 @@ export default function Home() {
     document.documentElement.classList.toggle('dark');
   };
 
+  // Timer State
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
   // Init Theme
   useEffect(() => {
     document.documentElement.classList.add('dark');
   }, []);
+
+  // Timer Countdown
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   const initializeProtocol = async () => {
     if (!repoUrl) return;
@@ -108,6 +126,9 @@ export default function Home() {
               // Auto switch
               if (res.preview) setActiveTab('preview');
               else if (res.artifacts?.length) setActiveTab('code');
+
+              // Start 30m Timer
+              setTimeLeft(1800);
 
               setIsLoading(false);
             }
@@ -193,7 +214,13 @@ export default function Home() {
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
-          <div className="flex gap-2 text-xs">
+          <div className="flex gap-2 text-xs items-center">
+            {timeLeft !== null && (
+              <span className={`px-2 py-1 rounded border font-bold animate-pulse ${isDarkMode ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-red-100 text-red-600 border-red-300'
+                }`}>
+                SANDBOX DETONATION IN: {formatTime(timeLeft)}
+              </span>
+            )}
             <span className={`px-2 py-1 rounded border ${isDarkMode ? 'bg-[#39ff14]/10 border-[#39ff14]/50' : 'bg-green-100 text-green-800 border-green-300'}`}>STATUS: ONLINE</span>
             <span className={`px-2 py-1 rounded border ${isDarkMode ? 'bg-[#39ff14]/10 border-[#39ff14]/50' : 'bg-blue-100 text-blue-800 border-blue-300'}`}>MODE: {isDarkMode ? 'HAXOR' : 'CORP'}</span>
           </div>

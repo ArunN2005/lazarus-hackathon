@@ -422,8 +422,8 @@ class LazarusEngine:
                 self.sandbox = None
 
             # Create NEW Sandbox (Persistent) defined by self.sandbox
-            # Timeout set to 300s (5m) to allow user to explore preview
-            self.sandbox = Sandbox.create(timeout=300)
+            # Timeout set to 1800s (30m) to allow user to explore preview
+            self.sandbox = Sandbox.create(timeout=1800)
             
             # Write ALL files
             for file in files:
