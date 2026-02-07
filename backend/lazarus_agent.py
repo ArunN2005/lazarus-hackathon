@@ -512,7 +512,7 @@ class LazarusEngine:
                     frontend_dir = "modernized_stack/frontend"
                     
                     # Install deps
-                    self.sandbox.commands.run(f"cd {frontend_dir} && npm install", timeout=300)
+                    self.sandbox.commands.run(f"cd {frontend_dir} && npm install --force", timeout=300)
                     
                     print(f"[*] Starting Frontend in background (connected to {backend_url})...")
                     # Start Next.js with Backend URL injected
