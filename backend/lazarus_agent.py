@@ -731,10 +731,18 @@ class LazarusEngine:
                 for i in range(20): # Try for 60 seconds (increased from 45)
                     time.sleep(3)
                     try:
-                        # More verbose health check
-                        check = self.sandbox.commands.run("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000")
+                        # Use Python instead of curl (curl may not be installed)
+                        check_script = """
+import urllib.request
+try:
+    response = urllib.request.urlopen('http://127.0.0.1:8000', timeout=2)
+    print(response.status)
+except Exception as e:
+    print('error')
+"""
+                        check = self.sandbox.commands.run(f"python -c \"{check_script}\"")
                         status_code = check.stdout.strip()
-                        print(f"[*] Backend Health Check {i+1}/20: HTTP {status_code if status_code else 'No Response'}")
+                        print(f"[*] Backend Health Check {i+1}/20: HTTP {status_code if status_code and status_code != 'error' else 'No Response'}")
                         
                         if status_code in ['200', '404', '401', '405', '500']: 
                             print("[*] Backend Health Check: SUCCESS ✓")
