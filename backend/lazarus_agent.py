@@ -663,18 +663,22 @@ class LazarusEngine:
         print(f"[*] Executing {entrypoint} in E2B Sandbox...")
         
         try:
-            # Kill previous sandbox if exists to free resources/prevent conflict
+            # AGGRESSIVE CLEANUP: Kill previous sandbox if exists
             if self.sandbox:
                 try:
                     print("[*] Terminating previous Sandbox...")
                     self.sandbox.close()
-                except:
-                    pass
-                self.sandbox = None
+                    print("[*] Previous Sandbox terminated successfully.")
+                except Exception as e:
+                    print(f"[*] Sandbox cleanup warning: {str(e)[:100]}")
+                finally:
+                    self.sandbox = None
 
             # Create NEW Sandbox (Persistent) defined by self.sandbox
             # Timeout set to 1800s (30m) to allow user to explore preview
+            print("[*] Creating new E2B Sandbox (30min timeout)...")
             self.sandbox = Sandbox.create(timeout=1800)
+            print(f"[*] Sandbox created successfully. ID: {self.sandbox.id if hasattr(self.sandbox, 'id') else 'N/A'}")
             
             # Write ALL files
             for file in files:
@@ -724,22 +728,30 @@ class LazarusEngine:
                 # HEALTH CHECK LOOP (Backend)
                 print("[*] Waiting for Backend to boot...")
                 backend_success = False
-                for i in range(15): # Try for 45 seconds
+                for i in range(20): # Try for 60 seconds (increased from 45)
                     time.sleep(3)
                     try:
+                        # More verbose health check
                         check = self.sandbox.commands.run("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000")
-                        if check.stdout.strip() in ['200', '404', '401', '405', '500']: 
-                            print("[*] Backend Health Check: SUCCESS")
+                        status_code = check.stdout.strip()
+                        print(f"[*] Backend Health Check {i+1}/20: HTTP {status_code if status_code else 'No Response'}")
+                        
+                        if status_code in ['200', '404', '401', '405', '500']: 
+                            print("[*] Backend Health Check: SUCCESS ✓")
                             backend_success = True
                             break
-                    except:
+                    except Exception as e:
+                        print(f"[*] Backend Health Check {i+1}/20: Exception - {str(e)[:50]}")
                         pass
-                    print(f"[*] Backend Health Check: Attempt {i+1}/15 failed...")
 
                 if not backend_success:
-                    print("[!] Backend FAILED. Retrieving logs...")
-                    log_content = self.sandbox.files.read("app.log")
-                    return f"FATAL: Backend failed to start.\n\n=== APP.LOG ===\n{log_content}\n==============="
+                    print("[!] Backend FAILED to start. Retrieving logs...")
+                    try:
+                        log_content = self.sandbox.files.read("app.log")
+                        print(f"[DEBUG] App Log Preview:\n{log_content[:500]}")
+                    except:
+                        log_content = "Could not read app.log"
+                    return f"FATAL: Backend failed to start after 60 seconds.\\n\\n=== APP.LOG ===\\n{log_content}\\n==============="
 
                 # Get Backend URL
                 backend_host = self.sandbox.get_host(8000)
