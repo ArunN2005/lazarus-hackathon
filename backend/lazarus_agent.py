@@ -344,7 +344,8 @@ class LazarusEngine:
             # Install Dependencies (Hackathon Mode: Auto-install common ones)
             if entrypoint.endswith('.py'):
                 print("[*] Installing Python dependencies (Timeout: 300s)...")
-                self.sandbox.commands.run("pip install fastapi uvicorn flask flask-cors sqlalchemy pydantic", timeout=300)
+                # Added python-multipart for FastAPI Form/Login support
+                self.sandbox.commands.run("pip install fastapi uvicorn flask flask-cors sqlalchemy pydantic python-multipart", timeout=300)
                 
                 # START SERVER IN BACKGROUND (With Logging)
                 print(f"[*] Starting {entrypoint} in background (logging to app.log)...")
@@ -443,9 +444,8 @@ class LazarusEngine:
         if url_match:
             preview = url_match.group(1) # It's a URL now, not HTML content
         else:
-             # Fallback to file content if no URL
-             if html_match:
-                preview = html_match.group(1)
+             # Fallback: No URL found
+             pass
         
         # Check artifacts
         for f in files:
