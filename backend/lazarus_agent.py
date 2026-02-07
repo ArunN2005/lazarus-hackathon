@@ -172,9 +172,9 @@ class LazarusEngine:
                     except (KeyError, IndexError):
                         return f"[ERROR] Bad Response: {response.text}"
                 
-                elif response.status_code == 429:
+                elif response.status_code in [429, 500, 503]:
                     wait = base_wait * (2 ** attempt)
-                    print(f"[*] Rate Limit (429). Retrying in {wait}s...")
+                    print(f"[*] API Error ({response.status_code}). Retrying in {wait}s...")
                     time.sleep(wait)
                     continue
                 else:
@@ -267,7 +267,6 @@ class LazarusEngine:
             -   `modernized_stack/docker-compose.yml`
         2.  **Execution Requirements**: 
             -   The `backend/main.py` MUST be production-ready.
-            -   The `backend/main.py` MUST be production-ready.
             -   **CRITICAL**: `uvicorn.run(app, host="0.0.0.0", port=8000)`. DO NOT USE `127.0.0.1` or `localhost`.
             -   **CRITICAL**: DO NOT use relative imports (e.g. `from .database import`) in `main.py`. Use absolute/local imports (e.g. `from database import`).
             -   **CRITICAL**: The backend MUST serve `modernized_stack/preview.html` at the ROOT output `GET /`.
@@ -316,6 +315,10 @@ class LazarusEngine:
     def execute_in_sandbox(self, files: list, entrypoint: str):
         if not E2B_AVAILABLE or not E2B_API_KEY:
             return "E2B Sandbox not available (Dependencies or Key missing)."
+            
+        # SAFETY CHECK: Did Code Gen Fail?
+        if entrypoint == "error.log":
+            return f"GENERATION FAILED: Gemini API returned an error.\n\n=== ERROR LOG ===\n{files[0]['content']}\n================="
 
         print(f"[*] Executing {entrypoint} in E2B Sandbox...")
         
