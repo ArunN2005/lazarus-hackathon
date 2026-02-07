@@ -319,6 +319,52 @@ class LazarusEngine:
             "entrypoint": "modernized_stack/backend/main.py"
         }
 
+    def infer_dependencies(self, files: list) -> list:
+        """
+        Scans generated python code for imports/usage and returns specific PyPI packages.
+        This prevents 'ModuleNotFoundError' by pre-emptively installing what is used.
+        """
+        detected = set()
+        
+        # Mapping: Code Keyword/Import -> PyPI Package
+        # Note: We enforce specific versions for known conflicts (like bcrypt)
+        dependency_map = {
+            "fastapi": "fastapi",
+            "uvicorn": "uvicorn", 
+            "sqlalchemy": "sqlalchemy",
+            "pydantic": "pydantic",
+            "flask": "flask",
+            "cors": "flask-cors", # Heuristic for Flask-CORS
+            "CORSMiddleware": "fastapi", # Implicit
+            "jose": "python-jose[cryptography]", 
+            "jwt": "python-jose[cryptography]",
+            "passlib": "passlib[bcrypt]", # Needs bcrypt
+            "bcrypt": "bcrypt==4.0.1", # CRITICAL: Force 4.0.1 for passlib
+            "multipart": "python-multipart",
+            "Form": "python-multipart", # fastapi.Form requires this
+            "File": "python-multipart", # fastapi.File requires this
+            "requests": "requests",
+            "bs4": "beautifulsoup4",
+            "dotenv": "python-dotenv"
+        }
+
+        # Scan all .py files
+        for f in files:
+            if f['filename'].endswith('.py'):
+                content = f['content']
+                for key, package in dependency_map.items():
+                    # Simple heuristic: if the keyword is in the file, we likely need the package
+                    # We check for "import key", "from key", or usage like "key." or just the word if it's unique like "passlib"
+                    if key in content:
+                         detected.add(package)
+        
+        # Always ensure basic runner tools are present if we found any python code
+        if any(f['filename'].endswith('.py') for f in files):
+            detected.add("uvicorn")
+            detected.add("fastapi") # fallback
+            
+        return list(detected)
+
     def execute_in_sandbox(self, files: list, entrypoint: str):
         if not E2B_AVAILABLE or not E2B_API_KEY:
             return "E2B Sandbox not available (Dependencies or Key missing)."
@@ -357,22 +403,33 @@ class LazarusEngine:
             if entrypoint.endswith('.py'):
                 print("[*] Installing Python dependencies (Timeout: 300s)...")
                 
-                # 1. Smart Check: Does requirements.txt exist?
+                # 1. Start with Intelligent Inference
+                inferred = self.infer_dependencies(files)
+                final_reqs = set(inferred)
+                
+                print(f"[*] Intelligent Scanner detected {len(inferred)} required packages from code analysis.")
+                if inferred:
+                    print(f"[DEBUG] Inferred: {', '.join(inferred)}")
+
+                # 2. Merge with requirements.txt if it exists
                 req_file = next((f for f in files if "requirements.txt" in f['filename']), None)
-                
                 if req_file:
-                    print(f"[*] detected requirements.txt ({len(req_file['content'].splitlines())} lines). Installing...")
-                    # Install from requirements.txt
-                    self.sandbox.commands.run(f"pip install -r {req_file['filename']}", timeout=300)
+                    print(f"[*] Merging with requirements.txt...")
+                    # We append contents of req file to our set (ignoring versions for now, simple string match)
+                    # Ideally we trust the explicit requirements.txt for specific versions, 
+                    # but we *Must* override critical ones like bcrypt.
                     
-                    # SAFETY NET & COMPATIBILITY PATCH
-                    print("[*] Applying Compatibility Patch (bcrypt==4.0.1 for passlib)...")
-                    self.sandbox.commands.run("pip install fastapi uvicorn python-multipart \"bcrypt==4.0.1\"", timeout=120)
-                else:
-                    print("[*] No requirements.txt found. Installing Validated Stack...")
-                    # Fallback to "Kitchen Sink" with PINNED versions
-                    self.sandbox.commands.run("pip install fastapi uvicorn flask flask-cors sqlalchemy pydantic python-multipart python-jose[cryptography] \"passlib[bcrypt]\" \"bcrypt==4.0.1\"", timeout=300)
+                    # Install req file first
+                    self.sandbox.commands.run(f"pip install -r {req_file['filename']}", timeout=300)
                 
+                # 3. Force Install the Consolidated "Smart" list
+                # This ensures that even if requirements.txt missed 'python-multipart', we catch it from 'Form' usage.
+                # And it enforces our 'bcrypt==4.0.1' override if it was inferred.
+                if final_reqs:
+                    install_str = " ".join([f"'{p}'" for p in final_reqs]) # Quote to handle brackets
+                    print(f"[*] Pre-loading inferred dependencies to prevent runtime errors...")
+                    self.sandbox.commands.run(f"pip install {install_str}", timeout=300)
+
                 # START SERVER IN BACKGROUND (With Logging)
                 print(f"[*] Starting Backend {entrypoint} in background (logging to app.log)...")
                 self.sandbox.commands.run(f"python {entrypoint} > app.log 2>&1", background=True)
