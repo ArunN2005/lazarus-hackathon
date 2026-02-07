@@ -196,47 +196,93 @@ class LazarusEngine:
 
     def generate_modernization_plan(self, repo_url: str, instructions: str) -> str:
         prompt = f"""
-        ACT AS: Senior Full-Stack Migration Architect & AI Engineer.
-        PROJECT: "Lazarus" (Autonomous Resurrection Engine).
+        ACT AS: Elite Full-Stack Architect & AI Systems Engineer.
+        PROJECT: "Lazarus Engine" - Autonomous Code Resurrection System.
 
         CONTEXT:
-        We are migrating a legacy repository at: {repo_url}
-        User Instructions (Vibe): {instructions}
+        - Legacy Repository: {repo_url}
+        - User Preferences: "{instructions if instructions else 'Modern, production-ready stack'}"
 
         YOUR MISSION:
-        Do not just "fix" the files. You must **ARCHITECT** a modern replacement.
+        Architect a complete, production-grade replacement that RESPECTS USER PREFERENCES while maintaining best practices.
 
-        EXECUTE THE FOLLOWING "CHAIN OF THOUGHT" PLAN:
-
-        ### PHASE 1: THE CONTRACT AUDIT (Critical)
-        - Scan the Legacy Backend files (hypothetically).
-        - **Identify the API Contract:** List every likely API endpoint (e.g., `/api/login`, `/get_users`) and their expected HTTP methods.
-        - **Constraint:** New backend MUST support these exact endpoint names.
-
-        ### PHASE 2: BACKEND RESURRECTION (Logic First)
-        - Target: `./modernized_stack/backend`.
-        - **Stack Decision:** Use **Python FastAPI** or **Node.js (Express)**.
-        - **Action:** Plan the `main.py` or `server.js` implementing the API Contract.
-        - **Modernization:** Add CORS support immediately.
-
-        ### PHASE 3: FRONTEND RESURRECTION (Vibe Second)
-        - Target: `./modernized_stack/frontend`.
-        - **Stack Decision:** Next.js 15 (App Router).
-        - **Vibe Instruction:** Cyberpunk Aesthetic (Deep Void Black #050505, Neon Green #39ff14).
-        - **Action:** Rewrite legacy frontend logic to React Components.
-
-        ### PHASE 4: ORCHESTRATION
-        - Plan a root level `docker-compose.yml` in `./modernized_stack`.
-
-        OUTPUT:
-        Provide a concise, high-level architectural plan following these phases.
+        ### STEP 1: PREFERENCE ANALYSIS (CRITICAL)
+        Analyze the user's preferences and extract:
+        1. **Design Preferences**: Color schemes, UI style (e.g., "dark mode", "minimalist", "cyberpunk")
+        2. **Feature Requirements**: Specific functionality they want (e.g., "authentication", "dashboard", "real-time updates")
+        3. **Tech Stack Preferences**: Any mentioned frameworks or libraries
+        4. **Performance Requirements**: Speed, scalability needs
         
-        CRITICAL: 
-        - DO NOT ASK QUESTIONS (e.g., "Shall I proceed?").
-        - OUTPUT THE PLAN IMMEDIATELY.
-        - THIS IS A NON-INTERACTIVE SESSION.
+        If user preferences are vague, infer intelligent defaults based on modern best practices.
+
+        ### STEP 2: LEGACY CONTRACT AUDIT
+        Based on the repository structure, identify:
+        - Likely API endpoints (e.g., `/api/login`, `/api/users`)
+        - Data models and schemas
+        - Authentication patterns
+        - Frontend routes and pages
+        
+        **Constraint**: New system MUST maintain API compatibility for zero-downtime migration.
+
+        ### STEP 3: ARCHITECTURE DESIGN (Preference-Driven)
+        
+        **Backend Strategy**:
+        - Stack: Python FastAPI (high performance, modern async)
+        - Authentication: JWT tokens with secure password hashing
+        - Database: SQLite for prototyping (easily upgradable to PostgreSQL)
+        - API Design: RESTful with automatic OpenAPI docs
+        - **Apply user preferences**: If they want specific features, plan the endpoints
+        
+        **Frontend Strategy**:
+        - Stack: Next.js 15 (App Router) with TypeScript
+        - Styling: Tailwind CSS with custom design system
+        - **Apply user preferences**: 
+          * Use their color scheme in Tailwind config
+          * Match their desired UI style (glassmorphism, neumorphism, etc.)
+          * Implement requested features (dashboards, charts, forms)
+        - State Management: React hooks (simple, effective)
+        - API Integration: Environment-based URLs for flexibility
+
+        ### STEP 4: INTEGRATION PLANNING
+        - CORS: Wildcard origins for sandbox compatibility
+        - Environment Variables: `NEXT_PUBLIC_API_URL` for dynamic backend connection
+        - Build Process: Production builds for optimal performance
+        - Error Handling: Graceful fallbacks and user-friendly messages
+
+        ### STEP 5: QUALITY ASSURANCE
+        Plan for:
+        - Type safety (TypeScript, Pydantic)
+        - Input validation on both frontend and backend
+        - Secure authentication flow
+        - Responsive design (mobile-first)
+        - Performance optimization (code splitting, lazy loading)
+
+        OUTPUT FORMAT:
+        Provide a detailed architectural plan in this structure:
+        
+        **USER PREFERENCES INTERPRETATION**:
+        [Explain how you interpreted their preferences]
+        
+        **BACKEND ARCHITECTURE**:
+        - Endpoints: [List all planned API routes]
+        - Models: [Data structures]
+        - Security: [Auth strategy]
+        
+        **FRONTEND ARCHITECTURE**:
+        - Pages: [All routes and their purpose]
+        - Components: [Key reusable components]
+        - Design System: [Colors, typography, spacing based on user preferences]
+        
+        **INTEGRATION STRATEGY**:
+        [How frontend and backend connect]
+        
+        CRITICAL RULES:
+        - DO NOT ask questions or wait for approval
+        - OUTPUT the complete plan immediately
+        - RESPECT user preferences while maintaining quality
+        - Be specific and actionable
         """
-        # Phase 1: Audit & Plan -> Gemini 3 Pro (Needs Context)
+        # Use Gemini 3 Pro for complex reasoning
         return self._call_gemini(prompt, model="gemini-3-pro-preview")
 
     def generate_code(self, plan: str) -> dict:
@@ -244,21 +290,52 @@ class LazarusEngine:
         Returns info about the code to be generated (Multiple Files, Nested Structure).
         """
         prompt = f"""
-        ACT AS: Senior Full-Stack Migration Architect.
-        PLAN: {plan}
+        ACT AS: Elite Full-Stack Engineer with 10+ years experience.
+        PROJECT: "Lazarus Engine" - Code Resurrection System.
         
-        TASK: Generate the COMPLETE file system for the new `modernized_stack`.
+        ARCHITECTURAL PLAN:
+        {plan}
         
-        ### INSTRUCTION: MULTI-FILE GENERATION PROTOCOL (STRICT)
-        You must output multiple files. Wrap EVERY file in this exact XML structure:
+        YOUR MISSION:
+        Implement the COMPLETE file system based on the architectural plan above.
+        Generate production-quality, well-integrated code that brings the plan to life.
+
+        ### REASONING PROCESS (Think Before You Code):
+        
+        1. **Extract Key Requirements from Plan**:
+           - What are the user's design preferences?
+           - What features are required?
+           - What's the color scheme and UI style?
+           - What API endpoints are needed?
+        
+        2. **Design Decisions**:
+           - How will components be structured for reusability?
+           - What's the data flow between frontend and backend?
+           - How will authentication work?
+           - What validation is needed?
+        
+        3. **Integration Strategy**:
+           - How will frontend call backend APIs?
+           - How will environment variables be used?
+           - How will errors be handled gracefully?
+
+        ### IMPLEMENTATION PROTOCOL (STRICT):
+        
+        You must output multiple files wrapped in XML:
         <file path="folder/filename.ext">
         ... content ...
         </file>
 
         **RULES:**
-        1. **NO LAZINESS**: Write FULL code. No `// ... rest`.
-        2. **NO MARKDOWN**: Do not use ``` blocks inside the XML.
-        3. **SINGLE STREAM**: Output all files in one response.
+        1. **NO LAZINESS**: Write COMPLETE, PRODUCTION-READY code. No placeholders like `// ... rest`
+        2. **NO MARKDOWN**: Do not use ``` blocks inside XML tags
+        3. **SINGLE STREAM**: Output all files in one response
+        4. **HIGH QUALITY**: 
+           - Add helpful comments
+           - Use meaningful variable names
+           - Follow best practices
+           - Include error handling
+           - Add input validation
 
         ### CRITICAL CONSTRAINTS (STRICT ENFORCEMENT):
         
@@ -281,14 +358,15 @@ class LazarusEngine:
             └── docker-compose.yml
             ```
 
-        2.  **Backend (FastAPI) - COPY THIS EXACTLY**:
+        2.  **Backend (FastAPI) - COPY THIS TEMPLATE AND EXTEND**:
             ```python
-            from fastapi import FastAPI
+            from fastapi import FastAPI, HTTPException, Depends
             from fastapi.middleware.cors import CORSMiddleware
             from fastapi.responses import HTMLResponse
+            from pydantic import BaseModel
             import uvicorn
 
-            app = FastAPI()
+            app = FastAPI(title="Lazarus Backend", version="1.0.0")
 
             # CRITICAL: Allow all origins for sandbox
             app.add_middleware(
@@ -299,14 +377,23 @@ class LazarusEngine:
                 allow_headers=["*"],
             )
 
+            # Models (extend based on plan)
+            class LoginRequest(BaseModel):
+                username: str
+                password: str
+
+            # Health check
             @app.get("/")
             def health_check():
                 return {{"status": "online", "service": "lazarus-backend"}}
 
+            # API endpoints (add more based on plan)
             @app.post("/api/login")
-            def login(username: str, password: str):
-                # Your login logic here
-                return {{"token": "demo_token", "user": username}}
+            def login(request: LoginRequest):
+                # TODO: Add real authentication
+                if request.username and request.password:
+                    return {{"token": "demo_token", "user": request.username}}
+                raise HTTPException(status_code=401, detail="Invalid credentials")
 
             if __name__ == "__main__":
                 uvicorn.run(app, host="0.0.0.0", port=8000)
@@ -324,12 +411,19 @@ class LazarusEngine:
             export default config;
             ```
 
-            **B. `tailwind.config.ts`** - MUST include:
+            **B. `tailwind.config.ts`** - CUSTOMIZE based on user preferences:
             ```typescript
             import type {{ Config }} from 'tailwindcss';
             const config: Config = {{
               content: ['./app/**/*.{{ts,tsx}}'],
-              theme: {{ extend: {{}} }},
+              theme: {{
+                extend: {{
+                  // ADD CUSTOM COLORS FROM PLAN HERE
+                  colors: {{
+                    // Example: 'primary': '#your-color',
+                  }},
+                }},
+              }},
               plugins: [],
             }};
             export default config;
@@ -350,41 +444,74 @@ class LazarusEngine:
             @tailwind base;
             @tailwind components;
             @tailwind utilities;
+            
+            /* Add custom styles based on user preferences */
             ```
 
-            **E. `app/page.tsx`** - MUST use API URL correctly:
+            **E. `app/page.tsx`** - IMPLEMENT based on plan with proper API integration:
             ```typescript
             'use client';
             import {{ useState }} from 'react';
 
             export default function LoginPage() {{
+              const [username, setUsername] = useState('');
+              const [password, setPassword] = useState('');
               const [error, setError] = useState('');
+              const [loading, setLoading] = useState(false);
               
               const handleLogin = async (e: React.FormEvent) => {{
                 e.preventDefault();
+                setLoading(true);
+                setError('');
+                
                 try {{
                   const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
                   const res = await fetch(`${{API_URL}}/api/login`, {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ username: 'demo', password: 'demo' }}),
+                    body: JSON.stringify({{ username, password }}),
                   }});
+                  
+                  if (!res.ok) throw new Error('Login failed');
+                  
                   const data = await res.json();
-                  console.log(data);
+                  console.log('Login successful:', data);
+                  // TODO: Redirect to dashboard
                 }} catch (err) {{
-                  setError('Connection failed');
+                  setError('Connection failed. Please try again.');
+                }} finally {{
+                  setLoading(false);
                 }}
               }};
 
               return (
                 <div className="min-h-screen bg-black flex items-center justify-center">
-                  <div className="bg-black/50 backdrop-blur-md border border-white/10 p-8 rounded-lg">
-                    <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600 mb-6">
+                  <div className="bg-black/50 backdrop-blur-md border border-white/10 p-8 rounded-lg max-w-md w-full">
+                    <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600 mb-6 text-center">
                       NEURAL ACCESS TERMINAL
                     </h1>
-                    <form onSubmit={{handleLogin}}>
-                      <button className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 text-white py-3 rounded">
-                        INITIALIZE
+                    <form onSubmit={{handleLogin}} className="space-y-4">
+                      <input
+                        type="text"
+                        placeholder="Username"
+                        value={{username}}
+                        onChange={{(e) => setUsername(e.target.value)}}
+                        className="w-full bg-black/30 border border-white/20 rounded px-4 py-3 text-white"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Password"
+                        value={{password}}
+                        onChange={{(e) => setPassword(e.target.value)}}
+                        className="w-full bg-black/30 border border-white/20 rounded px-4 py-3 text-white"
+                      />
+                      {{error && <p className="text-red-400 text-sm">{{error}}</p>}}
+                      <button
+                        type="submit"
+                        disabled={{loading}}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 text-white py-3 rounded font-semibold hover:opacity-90 transition"
+                      >
+                        {{loading ? 'CONNECTING...' : 'INITIALIZE'}}
                       </button>
                     </form>
                   </div>
@@ -393,13 +520,16 @@ class LazarusEngine:
             }}
             ```
 
-        4.  **VALIDATION RULES**:
-            - Backend MUST have `CORSMiddleware` with `allow_origins=["*"]`
-            - Frontend MUST use `process.env.NEXT_PUBLIC_API_URL` in ALL fetch calls
-            - Tailwind MUST have `@tailwind` directives in `globals.css`
-            - All components MUST use Tailwind classes (no inline styles)
+        4.  **QUALITY CHECKLIST** - Verify before outputting:
+            - [ ] Backend has CORS middleware
+            - [ ] All API endpoints use Pydantic models for validation
+            - [ ] Frontend uses `process.env.NEXT_PUBLIC_API_URL` for ALL API calls
+            - [ ] Tailwind config includes user's preferred colors
+            - [ ] All forms have loading states and error handling
+            - [ ] Code is well-commented and production-ready
+            - [ ] No hardcoded values (use env vars)
         
-        RETURN ONLY THE XML STREAM WITH COMPLETE FILES.
+        RETURN ONLY THE XML STREAM WITH COMPLETE, HIGH-QUALITY FILES.
         """
         # Phase 2: Write Code -> Gemini 3 Pro (Needs Reasoning)
         response = self._call_gemini(prompt, model="gemini-3-pro-preview")
