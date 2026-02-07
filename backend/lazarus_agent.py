@@ -265,42 +265,28 @@ class LazarusEngine:
             -   `modernized_stack/backend/main.py` (FastAPI)
             -   `modernized_stack/frontend/app/page.tsx` (Next.js - PUBLIC LANDING)
             -   `modernized_stack/frontend/app/dashboard/page.tsx` (Next.js - PROTECTED)
-            -   `modernized_stack/preview.html` (Static Mock)
+            -   `modernized_stack/frontend/tailwind.config.ts` (Design System)
+            -   `modernized_stack/frontend/postcss.config.mjs` (Required for Tailwind)
             -   `modernized_stack/docker-compose.yml`
-        2.  **Execution Requirements**: 
+        2.  **Backend Requirements**: 
             -   The `backend/main.py` MUST be production-ready.
-            -   **CRITICAL**: `uvicorn.run(app, host="0.0.0.0", port=8000)`. DO NOT USE `127.0.0.1` or `localhost`.
-            -   **CRITICAL**: DO NOT use relative imports (e.g. `from .database import`) in `main.py`. Use absolute/local imports (e.g. `from database import`).
-            -   **CRITICAL**: The backend MUST serve `modernized_stack/preview.html` at `/fallback_preview` (NOT root).
+            -   **CRITICAL**: `uvicorn.run(app, host="0.0.0.0", port=8000)`. DO NOT USE `127.0.0.1`.
+            -   **CRITICAL NETWORK**: Add `CORSMiddleware` allowing `allow_origins=["*"]`. 
+                -   (Reason: In Sandbox, the frontend URL is dynamic and unknown at build time).
             -   **CRITICAL**: The ROOT path `GET /` MUST return a JSON Health Check: `{{ "status": "online", "service": "lazarus-backend" }}`.
-            -   Implementation:
-                ```python
-                @app.get("/")
-                def read_root():
-                    return {{ "status": "online", "service": "lazarus-backend" }}
-
-                @app.get("/fallback_preview")
-                def read_preview():
-                     with open("modernized_stack/preview.html", "r") as f:
-                        return HTMLResponse(content=f.read())
-                ```
-            -   Include `requirements.txt` with ALL dependencies.
-            -   **CRITICAL**: Use these EXACT versions to prevent crashes:
-                -   `fastapi`
-                -   `uvicorn`
-                -   `python-multipart`
-                -   `python-jose[cryptography]`
-                -   `passlib[bcrypt]`
-                -   `bcrypt==4.0.1` (REQUIRED for passlib compatibility)
         3.  **Frontend (Next.js)**:
-            -   **CRITICAL UX**: `app/page.tsx` MUST be the **High-Fidelity Cyberpunk Landing/Login Page**. 
-            -   DO NOT generate a "Migration in Progress" placeholder or directory listing.
-            -   The user wants to see the "Result", not "Status".
-            -   Include a "Login" form directly on the landing page that POSTs to `NEXT_PUBLIC_API_URL + '/api/login'`.
+            -   **CRITICAL NETWORK**: API calls MUST use `process.env.NEXT_PUBLIC_API_URL`. 
+                -   Example: `fetch(process.env.NEXT_PUBLIC_API_URL + "/api/login", ...)`
+                -   DO NOT hardcode `localhost:8000`.
+            -   **CRITICAL UI DESIGN**: "Cyberpunk Glassmorphism" is MANDATORY.
+                -   Use `bg-black/50 backdrop-blur-md border border-white/10` for cards.
+                -   Use `text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600` for headings.
+                -   Use `lucide-react` icons for all actions.
+                -   The Login Page must look like a "Neural Interface Access Terminal".
+            -   **Config**: Generate `tailwind.config.ts` with `content: ["./app/**/*.{ts,tsx}"]`.
         4.  **Preview**: 
-            -   Generate `modernized_stack/preview.html`.
-            -   **CRITICAL**: INTERACTIVE MOCK.
-            -   Use JS to simulate backend calls if backend is offline.
+            -   Generate `modernized_stack/preview.html` at `/fallback_preview`.
+            -   Interactive Mock as backup.
         
         RETURN ONLY THE XML STREAM.
         """
