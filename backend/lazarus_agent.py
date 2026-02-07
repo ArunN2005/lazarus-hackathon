@@ -3,6 +3,7 @@ import json
 import re
 import requests
 import time
+import ast
 from simple_env import load_env
 
 # Try to import E2B, handle failure
@@ -321,47 +322,76 @@ class LazarusEngine:
 
     def infer_dependencies(self, files: list) -> list:
         """
-        Scans generated python code for imports/usage and returns specific PyPI packages.
-        This prevents 'ModuleNotFoundError' by pre-emptively installing what is used.
+        Scans generated python code for imports using AST and returns specific PyPI packages.
         """
         detected = set()
         
-        # Mapping: Code Keyword/Import -> PyPI Package
-        # Note: We enforce specific versions for known conflicts (like bcrypt)
-        dependency_map = {
+        # 1. The "Rosetta Stone" of Imports
+        PACKAGE_MAP = {
+            # Data & AI
+            "numpy": "numpy",
+            "pandas": "pandas",
+            "cv2": "opencv-python-headless", # Headless for servers!
+            "PIL": "pillow",
+            "sklearn": "scikit-learn",
+            "openai": "openai",
+            "google.generativeai": "google-generative-ai",
+            
+            # Backend Frameworks
             "fastapi": "fastapi",
-            "uvicorn": "uvicorn", 
-            "sqlalchemy": "sqlalchemy",
-            "pydantic": "pydantic",
+            "uvicorn": "uvicorn",
             "flask": "flask",
-            "cors": "flask-cors", # Heuristic for Flask-CORS
-            "CORSMiddleware": "fastapi", # Implicit
-            "jose": "python-jose[cryptography]", 
+            "flask_cors": "flask-cors",
+            "sqlalchemy": "sqlalchemy",
+            
+            # Auth & Security
+            "jose": "python-jose[cryptography]",
             "jwt": "python-jose[cryptography]",
-            "passlib": "passlib[bcrypt]", # Needs bcrypt
-            "bcrypt": "bcrypt==4.0.1", # CRITICAL: Force 4.0.1 for passlib
-            "multipart": "python-multipart",
-            "Form": "python-multipart", # fastapi.Form requires this
-            "File": "python-multipart", # fastapi.File requires this
+            "passlib": "passlib[bcrypt]",
+            "bcrypt": "bcrypt==4.0.1", # CRITICAL: Force 4.0.1
+            "multipart": "python-multipart", # Required for Form data
+            
+            # Utilities
+            "dotenv": "python-dotenv",
             "requests": "requests",
-            "bs4": "beautifulsoup4",
-            "dotenv": "python-dotenv"
+            "pydantic": "pydantic",
+            "email_validator": "email-validator",
+            "bs4": "beautifulsoup4"
         }
 
         # Scan all .py files
         for f in files:
             if f['filename'].endswith('.py'):
-                content = f['content']
-                for key, package in dependency_map.items():
-                    # Simple heuristic: if the keyword is in the file, we likely need the package
-                    # We check for "import key", "from key", or usage like "key." or just the word if it's unique like "passlib"
-                    if key in content:
-                         detected.add(package)
-        
-        # Always ensure basic runner tools are present if we found any python code
-        if any(f['filename'].endswith('.py') for f in files):
-            detected.add("uvicorn")
-            detected.add("fastapi") # fallback
+                try:
+                    tree = ast.parse(f['content'])
+                    for node in ast.walk(tree):
+                        # Scan "import x"
+                        if isinstance(node, ast.Import):
+                            for alias in node.names:
+                                root = alias.name.split('.')[0]
+                                if root in PACKAGE_MAP:
+                                    detected.add(PACKAGE_MAP[root])
+                        
+                        # Scan "from x import y"
+                        elif isinstance(node, ast.ImportFrom):
+                            if node.module:
+                                root = node.module.split('.')[0]
+                                if root in PACKAGE_MAP:
+                                    detected.add(PACKAGE_MAP[root])
+                                
+                                # SPECIAL CASE: Pydantic Email
+                                if root == "pydantic":
+                                    for name in node.names:
+                                        if name.name == "EmailStr":
+                                            detected.add("pydantic[email]")
+                                            detected.add("email-validator")
+                except SyntaxError:
+                    print(f"[!] SyntaxError parsing {f['filename']}. Skipping AST scan.")
+
+        # Always ensure basic runner tools are present
+        detected.add("uvicorn")
+        detected.add("fastapi")
+        detected.add("python-multipart")
             
         return list(detected)
 
