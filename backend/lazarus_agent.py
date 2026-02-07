@@ -27,6 +27,9 @@ class LazarusEngine:
         self.planner_model = "gemini-3-flash-preview"
         self.coder_model = "gemini-3-pro-preview" 
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        
+        # E2B Persistence
+        self.sandbox = None
 
     def commit_to_github(self, repo_url: str, filename: str, content: str) -> dict:
         """
@@ -114,8 +117,12 @@ class LazarusEngine:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is missing.")
         
-        target_model = model or self.planner_model # Default to fast model
+        target_model = model or "gemini-3-flash-preview" # Default fallback
         url = f"{self.base_url}/{target_model}:generateContent?key={self.api_key}"
+
+        # DEBUG LOG FOR USER VISIBILITY
+        print(f"[*] Authenticating with Gemini API Key for model: {target_model}...")
+
         headers = {'Content-Type': 'application/json'}
         data = {
             "contents": [{"parts": [{"text": prompt}]}]
@@ -192,8 +199,14 @@ class LazarusEngine:
 
         OUTPUT:
         Provide a concise, high-level architectural plan following these phases.
+        
+        CRITICAL: 
+        - DO NOT ASK QUESTIONS (e.g., "Shall I proceed?").
+        - OUTPUT THE PLAN IMMEDIATELY.
+        - THIS IS A NON-INTERACTIVE SESSION.
         """
-        return self._call_gemini(prompt, model=self.planner_model)
+        # Phase 1: Audit & Plan -> Gemini 3 Pro (Needs Context)
+        return self._call_gemini(prompt, model="gemini-3-pro-preview")
 
     def generate_code(self, plan: str) -> dict:
         """
@@ -205,60 +218,58 @@ class LazarusEngine:
         
         TASK: Generate the COMPLETE file system for the new `modernized_stack`.
         
-        CRITICAL CONSTRAINTS:
+        ### INSTRUCTION: MULTI-FILE GENERATION PROTOCOL (STRICT)
+        You must output multiple files. Wrap EVERY file in this exact XML structure:
+        <file path="folder/filename.ext">
+        ... content ...
+        </file>
+
+        **RULES:**
+        1. **NO LAZINESS**: Write FULL code. No `// ... rest`.
+        2. **NO MARKDOWN**: Do not use ``` blocks inside the XML.
+        3. **SINGLE STREAM**: Output all files in one response.
+
+        ### CRITICAL CONSTRAINTS:
         1.  **Structure**: logic MUST be inside `./modernized_stack/`.
-            -   `modernized_stack/backend/main.py`
-            -   `modernized_stack/frontend/app/page.tsx`
+            -   `modernized_stack/backend/main.py` (FastAPI)
+            -   `modernized_stack/frontend/app/page.tsx` (Next.js)
             -   `modernized_stack/preview.html` (Static Mock)
             -   `modernized_stack/docker-compose.yml`
-        2.  **Execution**: 
-            -   The `backend/main.py` MUST include a GRACEFUL SHUTDOWN TIMER.
-            -   The Sandbox will timeout if the server runs forever.
-            -   USE THIS EXACT BLOCK at the end of `main.py`:
-                ```python
-                if __name__ == "__main__":
-                    import uvicorn
-                    import threading, sys, time
-                    def kill_later():
-                        time.sleep(5)
-                        print("[*] Server startup test complete. Exiting...")
-                        sys.exit(0)
-                    threading.Thread(target=kill_later, daemon=True).start()
-                    uvicorn.run(app, host="0.0.0.0", port=8000)
-                ```
+        2.  **Execution Requirements**: 
+            -   The `backend/main.py` MUST be production-ready.
+            -   Include `requirements.txt` if needed (e.g., fastapi, uvicorn).
         3.  **Preview**: 
-            -   Generate a specific file `modernized_stack/preview.html`.
-            -   **CRITICAL**: This must be an **INTERACTIVE MOCK**.
-            -   Include embedded JavaScript to **SIMULATE** the backend calls.
-            -   Example: If the user clicks "Login", show a spinner, wait 1s, then DOM-swap to the Dashboard view.
-            -   The user MUST be able to "test" the flow in the preview tab even though the real backend is offline.
-        4.  **Dependencies**: You MAY use external libraries like **FastAPI**, **Uvicorn**, **Flask**, **React**, etc. as needed.
+            -   Generate `modernized_stack/preview.html`.
+            -   **CRITICAL**: INTERACTIVE MOCK.
+            -   Use JS to simulate backend calls if backend is offline.
         
-        RETURN JSON format:
-        {{
-            "files": [
-                {{ "filename": "modernized_stack/backend/main.py", "content": "..." }},
-                {{ "filename": "modernized_stack/frontend/app/page.tsx", "content": "..." }},
-                {{ "filename": "modernized_stack/preview.html", "content": "..." }},
-                {{ "filename": "modernized_stack/docker-compose.yml", "content": "..." }}
-            ],
-            "entrypoint": "modernized_stack/backend/main.py" 
-        }}
-        (Entrypoint should be the backend server script).
-        
-        RETURN ONLY JSON.
+        RETURN ONLY THE XML STREAM.
         """
-        response = self._call_gemini(prompt, model=self.coder_model)
-        # Clean potential markdown around json
-        cleaned = response.replace('```json', '').replace('```', '')
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError:
-            # Fallback
+        # Phase 2: Write Code -> Gemini 3 Pro (Needs Reasoning)
+        response = self._call_gemini(prompt, model="gemini-3-pro-preview")
+        
+        # XML Parsing Strategy
+        files = []
+        pattern = r'<file path="(.*?)">\s*(.*?)\s*</file>'
+        matches = re.findall(pattern, response, re.DOTALL)
+        
+        for filepath, content in matches:
+            files.append({
+                "filename": filepath.strip(), 
+                "content": content.strip()
+            })
+            
+        if not files:
+            # Fallback for debugging if regex fails
             return {
                 "files": [{"filename": "error.log", "content": response}],
-                "entrypoint": "error.log"
+                "entrypoint": "error.log" 
             }
+
+        return {
+            "files": files,
+            "entrypoint": "modernized_stack/backend/main.py"
+        }
 
     def execute_in_sandbox(self, files: list, entrypoint: str):
         if not E2B_AVAILABLE or not E2B_API_KEY:
@@ -267,36 +278,52 @@ class LazarusEngine:
         print(f"[*] Executing {entrypoint} in E2B Sandbox...")
         
         try:
-            # Use Sandbox.create() as factory
-            with Sandbox.create() as sandbox:
-                # Write ALL files
-                for file in files:
-                    # Create directories if needed
-                    dir_path = os.path.dirname(file['filename'])
-                    if dir_path and dir_path not in [".", ""]:
-                         # We can't easily mkdir -p in sandbox file write, so we run a command
-                         sandbox.commands.run(f"mkdir -p {dir_path}")
-                    
-                    sandbox.files.write(file['filename'], file['content'])
-                
-                # Install Dependencies (Hackathon Mode: Auto-install common ones)
-                if entrypoint.endswith('.py'):
-                    print("[*] Installing Python dependencies...")
-                    sandbox.commands.run("pip install fastapi uvicorn flask flask-cors")
-                    cmd = f"python {entrypoint}"
-                else: 
-                     cmd = f"node {entrypoint}"
+            # Kill previous sandbox if exists to free resources/prevent conflict
+            if self.sandbox:
+                try:
+                    print("[*] Terminating previous Sandbox...")
+                    self.sandbox.close()
+                except:
+                    pass
+                self.sandbox = None
 
-                # Use .commands.run instead of .notebook.exec_cell
-                exec_result = sandbox.commands.run(cmd)
+            # Create NEW Sandbox (Persistent) defined by self.sandbox
+            # Timeout set to 300s (5m) to allow user to explore preview
+            self.sandbox = Sandbox.create(timeout=300)
+            
+            # Write ALL files
+            for file in files:
+                # Create directories if needed
+                dir_path = os.path.dirname(file['filename'])
+                if dir_path and dir_path not in [".", ""]:
+                        # We can't easily mkdir -p in sandbox file write, so we run a command
+                        self.sandbox.commands.run(f"mkdir -p {dir_path}")
                 
-                output = ""
-                if exec_result.stdout:
-                    output += f"STDOUT: {exec_result.stdout}\n"
-                if exec_result.stderr:
-                    output += f"STDERR: {exec_result.stderr}\n"
+                self.sandbox.files.write(file['filename'], file['content'])
+            
+            # Install Dependencies (Hackathon Mode: Auto-install common ones)
+            if entrypoint.endswith('.py'):
+                print("[*] Installing Python dependencies (Timeout: 300s)...")
+                self.sandbox.commands.run("pip install fastapi uvicorn flask flask-cors sqlalchemy pydantic", timeout=300)
                 
-                return output.strip() or "No output returned."
+                # START SERVER IN BACKGROUND
+                print(f"[*] Starting {entrypoint} in background...")
+                # CRITICAL: background=True so we don't block
+                self.sandbox.commands.run(f"python {entrypoint}", background=True)
+                
+                # GET PREVIEW URL
+                # Port 8000 is standard for FastAPI
+                host = self.sandbox.get_host(8000)
+                output_log = f"Server started at: https://{host}"
+                
+            else: 
+                    cmd = f"node {entrypoint}"
+                    self.sandbox.commands.run(cmd, background=True)
+                    host = self.sandbox.get_host(3000)
+                    output_log = f"Node Server started at: https://{host}"
+
+            # Provide the URL in the log for the frontend to pick up
+            return f"{output_log}\n[PREVIEW_URL] https://{host}"
                 
         except Exception as e:
             return f"Sandbox Error: {str(e)}"
@@ -347,15 +374,22 @@ class LazarusEngine:
 
         # Extract HTML for preview
         preview = ""
-        # Check logs
-        html_match = re.search(r"(<!DOCTYPE html>.*</html>)", sandbox_logs, re.DOTALL | re.IGNORECASE)
-        if html_match:
-            preview = html_match.group(1)
+        # Check logs for URL
+        url_match = re.search(r"\[PREVIEW_URL\] (https://[^\s]+)", sandbox_logs)
+        if url_match:
+            preview = url_match.group(1) # It's a URL now, not HTML content
+        else:
+             # Fallback to file content if no URL
+             if html_match:
+                preview = html_match.group(1)
         
         # Check artifacts
         for f in files:
             if 'preview.html' in f['filename']:
-                preview = f['content']
+                # If we have a real URL, user defines if they want that or static HTML. 
+                # For now, let's prefer the Live Server URL if it exists!
+                if not preview.startswith("http"): 
+                    preview = f['content']
                 break
         
         # Determine Status
