@@ -260,35 +260,146 @@ class LazarusEngine:
         2. **NO MARKDOWN**: Do not use ``` blocks inside the XML.
         3. **SINGLE STREAM**: Output all files in one response.
 
-        ### CRITICAL CONSTRAINTS:
-        1.  **Structure**: logic MUST be inside `./modernized_stack/`.
-            -   `modernized_stack/backend/main.py` (FastAPI)
-            -   `modernized_stack/frontend/app/page.tsx` (Next.js - PUBLIC LANDING)
-            -   `modernized_stack/frontend/app/dashboard/page.tsx` (Next.js - PROTECTED)
-            -   `modernized_stack/frontend/tailwind.config.ts` (Design System)
-            -   `modernized_stack/frontend/postcss.config.mjs` (Required for Tailwind)
-            -   `modernized_stack/docker-compose.yml`
-        2.  **Backend Requirements**: 
-            -   The `backend/main.py` MUST be production-ready.
-            -   **CRITICAL**: `uvicorn.run(app, host="0.0.0.0", port=8000)`. DO NOT USE `127.0.0.1`.
-            -   **CRITICAL NETWORK**: Add `CORSMiddleware` allowing `allow_origins=["*"]`. 
-                -   (Reason: In Sandbox, the frontend URL is dynamic and unknown at build time).
-            -   **CRITICAL**: The ROOT path `GET /` MUST return a JSON Health Check: `{{ "status": "online", "service": "lazarus-backend" }}`.
-        3.  **Frontend (Next.js)**:
-            -   **CRITICAL NETWORK**: API calls MUST use `process.env.NEXT_PUBLIC_API_URL`. 
-                -   Example: `fetch(process.env.NEXT_PUBLIC_API_URL + "/api/login", ...)`
-                -   DO NOT hardcode `localhost:8000`.
-            -   **CRITICAL UI DESIGN**: "Cyberpunk Glassmorphism" is MANDATORY.
-                -   Use `bg-black/50 backdrop-blur-md border border-white/10` for cards.
-                -   Use `text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600` for headings.
-                -   Use `lucide-react` icons for all actions.
-                -   The Login Page must look like a "Neural Interface Access Terminal".
-            -   **Config**: Generate `tailwind.config.ts` with `content: ["./app/**/*.{{ts,tsx}}"]`.
-        4.  **Preview**: 
-            -   Generate `modernized_stack/preview.html` at `/fallback_preview`.
-            -   Interactive Mock as backup.
+        ### CRITICAL CONSTRAINTS (STRICT ENFORCEMENT):
         
-        RETURN ONLY THE XML STREAM.
+        1.  **File Structure** - Generate these EXACT files:
+            ```
+            modernized_stack/
+            ├── backend/
+            │   ├── main.py          (FastAPI server)
+            │   └── requirements.txt
+            ├── frontend/
+            │   ├── app/
+            │   │   ├── layout.tsx
+            │   │   ├── page.tsx     (Login/Landing)
+            │   │   ├── dashboard/page.tsx
+            │   │   └── globals.css
+            │   ├── tailwind.config.ts
+            │   ├── postcss.config.mjs
+            │   ├── next.config.ts
+            │   └── package.json
+            └── docker-compose.yml
+            ```
+
+        2.  **Backend (FastAPI) - COPY THIS EXACTLY**:
+            ```python
+            from fastapi import FastAPI
+            from fastapi.middleware.cors import CORSMiddleware
+            from fastapi.responses import HTMLResponse
+            import uvicorn
+
+            app = FastAPI()
+
+            # CRITICAL: Allow all origins for sandbox
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+
+            @app.get("/")
+            def health_check():
+                return {{"status": "online", "service": "lazarus-backend"}}
+
+            @app.post("/api/login")
+            def login(username: str, password: str):
+                # Your login logic here
+                return {{"token": "demo_token", "user": username}}
+
+            if __name__ == "__main__":
+                uvicorn.run(app, host="0.0.0.0", port=8000)
+            ```
+
+        3.  **Frontend (Next.js) - CRITICAL REQUIREMENTS**:
+            
+            **A. `next.config.ts`** - MUST include:
+            ```typescript
+            import type {{ NextConfig }} from 'next';
+            const config: NextConfig = {{
+              output: 'standalone',
+              reactStrictMode: true,
+            }};
+            export default config;
+            ```
+
+            **B. `tailwind.config.ts`** - MUST include:
+            ```typescript
+            import type {{ Config }} from 'tailwindcss';
+            const config: Config = {{
+              content: ['./app/**/*.{{ts,tsx}}'],
+              theme: {{ extend: {{}} }},
+              plugins: [],
+            }};
+            export default config;
+            ```
+
+            **C. `postcss.config.mjs`** - MUST include:
+            ```javascript
+            export default {{
+              plugins: {{
+                tailwindcss: {{}},
+                autoprefixer: {{}},
+              }},
+            }};
+            ```
+
+            **D. `app/globals.css`** - MUST start with:
+            ```css
+            @tailwind base;
+            @tailwind components;
+            @tailwind utilities;
+            ```
+
+            **E. `app/page.tsx`** - MUST use API URL correctly:
+            ```typescript
+            'use client';
+            import {{ useState }} from 'react';
+
+            export default function LoginPage() {{
+              const [error, setError] = useState('');
+              
+              const handleLogin = async (e: React.FormEvent) => {{
+                e.preventDefault();
+                try {{
+                  const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+                  const res = await fetch(`${{API_URL}}/api/login`, {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ username: 'demo', password: 'demo' }}),
+                  }});
+                  const data = await res.json();
+                  console.log(data);
+                }} catch (err) {{
+                  setError('Connection failed');
+                }}
+              }};
+
+              return (
+                <div className="min-h-screen bg-black flex items-center justify-center">
+                  <div className="bg-black/50 backdrop-blur-md border border-white/10 p-8 rounded-lg">
+                    <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600 mb-6">
+                      NEURAL ACCESS TERMINAL
+                    </h1>
+                    <form onSubmit={{handleLogin}}>
+                      <button className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 text-white py-3 rounded">
+                        INITIALIZE
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              );
+            }}
+            ```
+
+        4.  **VALIDATION RULES**:
+            - Backend MUST have `CORSMiddleware` with `allow_origins=["*"]`
+            - Frontend MUST use `process.env.NEXT_PUBLIC_API_URL` in ALL fetch calls
+            - Tailwind MUST have `@tailwind` directives in `globals.css`
+            - All components MUST use Tailwind classes (no inline styles)
+        
+        RETURN ONLY THE XML STREAM WITH COMPLETE FILES.
         """
         # Phase 2: Write Code -> Gemini 3 Pro (Needs Reasoning)
         response = self._call_gemini(prompt, model="gemini-3-pro-preview")
@@ -500,9 +611,13 @@ class LazarusEngine:
                     # Install deps
                     self.sandbox.commands.run(f"cd {frontend_dir} && npm install --force", timeout=300)
                     
-                    print(f"[*] Starting Frontend in background (connected to {backend_url})...")
-                    # Start Next.js with Backend URL injected
-                    start_cmd = f"cd {frontend_dir} && NEXT_PUBLIC_API_URL={backend_url} npm run dev -- -p 3000"
+                    print(f"[*] Building Frontend for production (Tailwind compilation)...")
+                    # Build first to compile Tailwind CSS properly
+                    build_result = self.sandbox.commands.run(f"cd {frontend_dir} && npm run build", timeout=300)
+                    
+                    print(f"[*] Starting Frontend in production mode (connected to {backend_url})...")
+                    # Start production server with Backend URL injected
+                    start_cmd = f"cd {frontend_dir} && NEXT_PUBLIC_API_URL={backend_url} npm start -- -p 3000"
                     self.sandbox.commands.run(f"{start_cmd} > frontend.log 2>&1", background=True)
                     
                     # Wait for Frontend
