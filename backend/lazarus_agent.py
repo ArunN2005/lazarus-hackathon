@@ -764,16 +764,20 @@ class LazarusEngine:
                 
                 if has_frontend:
                     print("🚀 Detected Frontend. Initiating Dual-Stack Launch...")
-                    print("[*] Installing Node dependencies (Timeout: 300s)...")
-                    # We need to install inside the frontend directory
-                    # Assuming standard structure: modernized_stack/frontend
                     frontend_dir = "modernized_stack/frontend"
                     
-                    # Install deps
+                    # CRITICAL: Create .env.local with backend URL BEFORE building
+                    # Next.js bakes env vars at build time, not runtime
+                    print(f"[*] Injecting Backend URL into .env.local...")
+                    env_content = f"NEXT_PUBLIC_API_URL={backend_url}\n"
+                    self.sandbox.files.write(f"{frontend_dir}/.env.local", env_content)
+                    print(f"[DEBUG] Created .env.local with: NEXT_PUBLIC_API_URL={backend_url}")
+                    
+                    print("[*] Installing Node dependencies (Timeout: 300s)...")
                     self.sandbox.commands.run(f"cd {frontend_dir} && npm install --force", timeout=300)
                     
-                    print(f"[*] Building Frontend for production (Tailwind compilation)...")
-                    # Build first to compile Tailwind CSS properly
+                    print(f"[*] Building Frontend for production (Backend URL: {backend_url})...")
+                    # Now the build will include the backend URL
                     build_result = self.sandbox.commands.run(f"cd {frontend_dir} && npm run build", timeout=300)
                     
                     # Check for build errors
@@ -784,9 +788,9 @@ class LazarusEngine:
                         # Return error with context for potential retry
                         return f"FRONTEND BUILD FAILED:\\n\\n{error_output}\\n\\nThis error will trigger automatic code regeneration."
                     
-                    print(f"[*] Starting Frontend in production mode (connected to {backend_url})...")
-                    # Start production server with Backend URL injected
-                    start_cmd = f"cd {frontend_dir} && NEXT_PUBLIC_API_URL={backend_url} npm start -- -p 3000"
+                    print(f"[*] Starting Frontend in production mode...")
+                    # Start production server (API URL already baked into build)
+                    start_cmd = f"cd {frontend_dir} && npm start -- -p 3000"
                     self.sandbox.commands.run(f"{start_cmd} > frontend.log 2>&1", background=True)
                     
                     # Wait for Frontend
@@ -794,7 +798,10 @@ class LazarusEngine:
                     frontend_host = self.sandbox.get_host(3000)
                     frontend_url = f"https://{frontend_host}"
                     
-                    return f"Dual-Stack Deployed Successfully.\n[PREVIEW_URL] {frontend_url}\n[BACKEND_URL] {backend_url}"
+                    print(f"[*] Frontend Live at: {frontend_url}")
+                    print(f"[*] Frontend → Backend Connection: {backend_url}")
+                    
+                    return f"Dual-Stack Deployed Successfully.\\n[PREVIEW_URL] {frontend_url}\\n[BACKEND_URL] {backend_url}"
                 
                 else:
                     # Single Stack (Backend Only)
