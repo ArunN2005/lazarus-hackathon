@@ -346,27 +346,44 @@ class LazarusEngine:
                 print("[*] Installing Python dependencies (Timeout: 300s)...")
                 self.sandbox.commands.run("pip install fastapi uvicorn flask flask-cors sqlalchemy pydantic", timeout=300)
                 
-                # START SERVER IN BACKGROUND
-                print(f"[*] Starting {entrypoint} in background...")
+                # START SERVER IN BACKGROUND (With Logging)
+                print(f"[*] Starting {entrypoint} in background (logging to app.log)...")
                 # CRITICAL: background=True so we don't block
-                self.sandbox.commands.run(f"python {entrypoint}", background=True)
+                # Redirect output to file so we can debug crashes
+                self.sandbox.commands.run(f"python {entrypoint} > app.log 2>&1", background=True)
                 
-                # Wait a moment for the server to actually bind the port
-                time.sleep(3)
+                # HEALTH CHECK LOOP
+                print("[*] Waiting for server to boot...")
+                success = False
+                for i in range(10): # Try for 30 seconds (10 * 3s)
+                    time.sleep(3)
+                    try:
+                        # Check if port 8000 is listening
+                        check = self.sandbox.commands.run("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000")
+                        if check.stdout.strip() in ['200', '404', '401', '405', '500']: # Any HTTP response means it's alive
+                            print("[*] Health Check: SUCCESS")
+                            success = True
+                            break
+                    except:
+                        pass
+                    print(f"[*] Health Check: Attempt {i+1}/10 failed. Retrying...")
 
-                # GET PREVIEW URL
-                # Port 8000 is standard for FastAPI
-                host = self.sandbox.get_host(8000)
-                output_log = f"Server started at: https://{host}"
+                if success:
+                    host = self.sandbox.get_host(8000)
+                    output_log = f"Server started at: https://{host}"
+                    return f"{output_log}\n[PREVIEW_URL] https://{host}"
+                else:
+                    # FAILED: Retrieve logs
+                    print("[!] Health Check FAILED. Retrieving error logs...")
+                    log_content = self.sandbox.files.read("app.log")
+                    return f"FATAL: Server failed to start.\n\n=== APP.LOG ===\n{log_content}\n==============="
                 
             else: 
-                    cmd = f"node {entrypoint}"
+                    cmd = f"node {entrypoint} > app.log 2>&1"
                     self.sandbox.commands.run(cmd, background=True)
+                    time.sleep(5)
                     host = self.sandbox.get_host(3000)
-                    output_log = f"Node Server started at: https://{host}"
-
-            # Provide the URL in the log for the frontend to pick up
-            return f"{output_log}\n[PREVIEW_URL] https://{host}"
+                    return f"Node Server started.\n[PREVIEW_URL] https://{host}"
                 
         except Exception as e:
             return f"Sandbox Error: {str(e)}"
