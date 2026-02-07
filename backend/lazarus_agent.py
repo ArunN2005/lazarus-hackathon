@@ -237,6 +237,7 @@ class LazarusEngine:
             -   `modernized_stack/docker-compose.yml`
         2.  **Execution Requirements**: 
             -   The `backend/main.py` MUST be production-ready.
+            -   **CRITICAL**: `uvicorn.run(app, host="0.0.0.0", port=8000)`. DO NOT USE `127.0.0.1` or `localhost`.
             -   Include `requirements.txt` if needed (e.g., fastapi, uvicorn).
         3.  **Preview**: 
             -   Generate `modernized_stack/preview.html`.
@@ -247,6 +248,7 @@ class LazarusEngine:
         """
         # Phase 2: Write Code -> Gemini 3 Pro (Needs Reasoning)
         response = self._call_gemini(prompt, model="gemini-3-pro-preview")
+        print("[DEBUG] Gemini 3 Pro Connected Successfully. Code Generated.")
         
         # XML Parsing Strategy
         files = []
@@ -311,6 +313,9 @@ class LazarusEngine:
                 # CRITICAL: background=True so we don't block
                 self.sandbox.commands.run(f"python {entrypoint}", background=True)
                 
+                # Wait a moment for the server to actually bind the port
+                time.sleep(3)
+
                 # GET PREVIEW URL
                 # Port 8000 is standard for FastAPI
                 host = self.sandbox.get_host(8000)
