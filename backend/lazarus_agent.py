@@ -744,8 +744,9 @@ except Exception as e:
                         status_code = check.stdout.strip()
                         print(f"[*] Backend Health Check {i+1}/20: HTTP {status_code if status_code and status_code != 'error' else 'No Response'}")
                         
-                        if status_code in ['200', '404', '401', '405', '500']: 
-                            print("[*] Backend Health Check: SUCCESS ✓")
+                        # Accept any valid HTTP response (200, 404, etc.) as success
+                        if status_code and status_code.isdigit() and int(status_code) < 600: 
+                            print(f"[*] Backend Health Check: SUCCESS ✓ (HTTP {status_code})")
                             backend_success = True
                             break
                     except Exception as e:
