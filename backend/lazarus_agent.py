@@ -276,7 +276,7 @@ class LazarusEngine:
                     with open("modernized_stack/preview.html", "r") as f:
                         return HTMLResponse(content=f.read())
                 ```
-            -   Include `requirements.txt` if needed (e.g., fastapi, uvicorn).
+            -   Include `requirements.txt` with ALL dependencies (e.g., fastapi, uvicorn, python-multipart, python-jose[cryptography], passlib[bcrypt]).
         3.  **Preview**: 
             -   Generate `modernized_stack/preview.html`.
             -   **CRITICAL**: INTERACTIVE MOCK.
@@ -341,11 +341,26 @@ class LazarusEngine:
                 
                 self.sandbox.files.write(file['filename'], file['content'])
             
-            # Install Dependencies (Hackathon Mode: Auto-install common ones)
+            # Install Dependencies (Hackathon Mode: Smart Install)
             if entrypoint.endswith('.py'):
                 print("[*] Installing Python dependencies (Timeout: 300s)...")
-                # Added python-multipart for FastAPI Form/Login support
-                self.sandbox.commands.run("pip install fastapi uvicorn flask flask-cors sqlalchemy pydantic python-multipart", timeout=300)
+                
+                # 1. Smart Check: Does requirements.txt exist?
+                req_file = next((f for f in files if "requirements.txt" in f['filename']), None)
+                
+                if req_file:
+                    print(f"[*] detected requirements.txt ({len(req_file['content'].splitlines())} lines). Installing...")
+                    # Install from requirements.txt
+                    self.sandbox.commands.run(f"pip install -r {req_file['filename']}", timeout=300)
+                    
+                    # SAFETY NET: Ensure valid runner dependencies are present even if Gemini missed them
+                    print("[*] Verifying core runner dependencies...")
+                    self.sandbox.commands.run("pip install fastapi uvicorn python-multipart", timeout=120)
+                else:
+                    print("[*] No requirements.txt found. Using Standard Hackathon Stack...")
+                    # Fallback to "Kitchen Sink" list including Auth/DB libs
+                    # Added: python-jose (JWT), passlib (Hashing), bcrypt
+                    self.sandbox.commands.run("pip install fastapi uvicorn flask flask-cors sqlalchemy pydantic python-multipart python-jose[cryptography] passlib[bcrypt] bcrypt", timeout=300)
                 
                 # START SERVER IN BACKGROUND (With Logging)
                 print(f"[*] Starting {entrypoint} in background (logging to app.log)...")
