@@ -929,54 +929,87 @@ except Exception as e:
              
         yield emit_log("Architecting Resurrection Blueprint...")
 
-        # 2. Code Gen with Auto-Retry
-        max_retries = 2
+        # 2. Code Gen with COMPREHENSIVE Auto-Healing Loop
+        MAX_RETRIES = 3  # Increased from 2
         retry_count = 0
         sandbox_logs = None
         files = []
         entrypoint = 'modernized_stack/backend/main.py'
+        all_errors = []  # Track all errors for context accumulation
         
-        while retry_count <= max_retries:
-            if retry_count > 0:
-                yield emit_log(f"Auto-Healing: Regenerating code (Attempt {retry_count + 1}/{max_retries + 1})...")
-                # Add error context to plan for retry
-                error_context = f"\n\nPREVIOUS BUILD ERROR:\n{sandbox_logs}\n\nFIX THE ABOVE ERROR. Pay special attention to TypeScript syntax (use 'string' not 'str', 'number' not 'int')."
-                plan_with_error = plan + error_context
-                code_data = self.generate_code(plan_with_error)
-            else:
-                yield emit_log("Synthesizing Modern Cloud Infrastructure...")
-                code_data = self.generate_code(plan)
-            
-            files = code_data.get('files', [])
-            entrypoint = code_data.get('entrypoint', 'modernized_stack/backend/main.py')
-            
-            encoded_files = [f['filename'] for f in files]
-            yield emit_debug(f"[DEBUG] Generated Files: {', '.join(encoded_files)}")
-            yield emit_log(f"Generated {len(encoded_files)} System Modules...")
-            
-            # 3. Execution
-            yield emit_log("Booting Neural Sandbox Environment...")
-            sandbox_logs = self.execute_in_sandbox(files, entrypoint)
-            yield emit_debug(f"[DEBUG] Sandbox Output:\n{sandbox_logs}")
-            
-            # Check if build failed
-            if "FRONTEND BUILD FAILED" in sandbox_logs or "GENERATION FAILED" in sandbox_logs:
-                if retry_count < max_retries:
-                    yield emit_log(f"Build Error Detected. Initiating Auto-Heal...")
-                    retry_count += 1
-                    continue  # Retry
+        while retry_count <= MAX_RETRIES:
+            try:
+                if retry_count > 0:
+                    yield emit_log(f"🔧 Auto-Healing: Regenerating code (Attempt {retry_count + 1}/{MAX_RETRIES + 1})...")
+                    
+                    # Build comprehensive error context for AI
+                    error_context = self._build_error_context(all_errors)
+                    plan_with_error = plan + error_context
+                    code_data = self.generate_code(plan_with_error)
                 else:
-                    yield emit_log("Auto-Heal Failed. Manual intervention required.")
+                    yield emit_log("Synthesizing Modern Cloud Infrastructure...")
+                    code_data = self.generate_code(plan)
+                
+                files = code_data.get('files', [])
+                entrypoint = code_data.get('entrypoint', 'modernized_stack/backend/main.py')
+                
+                # Validate generated files
+                if not files:
+                    raise Exception("CODE GENERATION FAILED: No files were generated")
+                
+                encoded_files = [f['filename'] for f in files]
+                yield emit_debug(f"[DEBUG] Generated Files: {', '.join(encoded_files)}")
+                yield emit_log(f"Generated {len(encoded_files)} System Modules...")
+                
+                # 3. Execution
+                yield emit_log("Booting Neural Sandbox Environment...")
+                sandbox_logs = self.execute_in_sandbox(files, entrypoint)
+                yield emit_debug(f"[DEBUG] Sandbox Output:\n{sandbox_logs}")
+                
+                # 4. Comprehensive Error Detection
+                error_detected, error_type, error_message = self._detect_errors(sandbox_logs)
+                
+                if error_detected:
+                    all_errors.append({
+                        "attempt": retry_count + 1,
+                        "type": error_type,
+                        "message": error_message
+                    })
+                    
+                    if retry_count < MAX_RETRIES:
+                        yield emit_log(f"⚠️ {error_type} Detected. Initiating Auto-Heal...")
+                        retry_count += 1
+                        continue  # Retry
+                    else:
+                        yield emit_log(f"❌ Auto-Heal Failed after {MAX_RETRIES + 1} attempts. Proceeding with partial result.")
+                        break
+                else:
+                    # Success!
+                    yield emit_log("✅ Verifying System Integrity... All checks passed!")
                     break
-            else:
-                # Success!
-                yield emit_log("Verifying System Integrity...")
-                break
+                    
+            except Exception as loop_error:
+                error_str = str(loop_error)
+                all_errors.append({
+                    "attempt": retry_count + 1,
+                    "type": "EXCEPTION",
+                    "message": error_str
+                })
+                
+                if retry_count < MAX_RETRIES:
+                    yield emit_log(f"⚠️ Exception caught: {error_str[:100]}... Retrying...")
+                    retry_count += 1
+                    sandbox_logs = f"EXCEPTION: {error_str}"
+                    continue
+                else:
+                    yield emit_log(f"❌ Max retries exceeded. Error: {error_str[:100]}")
+                    sandbox_logs = f"FATAL ERROR: {error_str}"
+                    break
         
         # Extract HTML for preview
         preview = ""
         # Check logs for URL
-        url_match = re.search(r"\[PREVIEW_URL\] (https://[^\s]+)", sandbox_logs)
+        url_match = re.search(r"\[PREVIEW_URL\] (https://[^\s]+)", sandbox_logs or "")
         if url_match:
             preview = url_match.group(1) # It's a URL now, not HTML content
         else:
@@ -994,8 +1027,10 @@ except Exception as e:
         
         # Determine Status
         status = "Resurrected"
-        if fallback_mode or "Sandbox Error" in sandbox_logs or "BUILD FAILED" in sandbox_logs:
+        if fallback_mode or (sandbox_logs and ("Sandbox Error" in sandbox_logs or "BUILD FAILED" in sandbox_logs or "FATAL ERROR" in sandbox_logs)):
             status = "Fallback"
+        elif preview.startswith("http"):
+            status = "Resurrected"  # Successfully got live URLs
         
         # Final Result
         yield {
@@ -1004,9 +1039,102 @@ except Exception as e:
                 "logs": "\n".join(logs),
                 "artifacts": files,
                 "preview": preview,
-                "status": status
+                "status": status,
+                "retry_count": retry_count,
+                "errors": all_errors
             }
         }
+    
+    def _detect_errors(self, sandbox_logs: str) -> tuple:
+        """
+        Comprehensive error detection for self-healing loop.
+        Returns: (error_detected: bool, error_type: str, error_message: str)
+        """
+        if not sandbox_logs:
+            return False, "", ""
+        
+        # Error patterns to detect with their types
+        error_patterns = [
+            # Build Errors
+            (r"FRONTEND BUILD FAILED", "FRONTEND_BUILD_ERROR"),
+            (r"npm ERR!", "NPM_ERROR"),
+            (r"error TS\d+:", "TYPESCRIPT_ERROR"),
+            (r"SyntaxError:", "SYNTAX_ERROR"),
+            (r"Module not found", "MODULE_NOT_FOUND"),
+            (r"Cannot find module", "MODULE_NOT_FOUND"),
+            
+            # Sandbox Errors
+            (r"Sandbox Error:", "SANDBOX_ERROR"),
+            (r"Command exited with code [^0]", "COMMAND_FAILED"),
+            (r"syntax error near unexpected token", "BASH_SYNTAX_ERROR"),
+            (r"mkdir.*failed", "MKDIR_ERROR"),
+            (r"Permission denied", "PERMISSION_ERROR"),
+            
+            # Python Errors  
+            (r"ModuleNotFoundError:", "PYTHON_IMPORT_ERROR"),
+            (r"ImportError:", "PYTHON_IMPORT_ERROR"),
+            (r"IndentationError:", "PYTHON_SYNTAX_ERROR"),
+            (r"NameError:", "PYTHON_NAME_ERROR"),
+            (r"TypeError:", "PYTHON_TYPE_ERROR"),
+            
+            # Connection Errors
+            (r"ECONNREFUSED", "CONNECTION_ERROR"),
+            (r"Failed to connect", "CONNECTION_ERROR"),
+            (r"Backend connection failed", "BACKEND_ERROR"),
+            
+            # Generation Errors
+            (r"GENERATION FAILED", "GENERATION_ERROR"),
+            (r"No files were generated", "EMPTY_GENERATION"),
+        ]
+        
+        for pattern, error_type in error_patterns:
+            match = re.search(pattern, sandbox_logs, re.IGNORECASE)
+            if match:
+                # Extract context around the error
+                start = max(0, match.start() - 200)
+                end = min(len(sandbox_logs), match.end() + 500)
+                error_context = sandbox_logs[start:end]
+                return True, error_type, error_context
+        
+        return False, "", ""
+    
+    def _build_error_context(self, errors: list) -> str:
+        """
+        Builds comprehensive error context for AI to understand and fix issues.
+        """
+        if not errors:
+            return ""
+        
+        context = "\n\n" + "=" * 80 + "\n"
+        context += "⚠️ AUTOMATIC ERROR RECOVERY - FIX THE FOLLOWING ISSUES ⚠️\n"
+        context += "=" * 80 + "\n\n"
+        
+        for i, error in enumerate(errors, 1):
+            context += f"### Error {i} (Attempt {error['attempt']}) - Type: {error['type']}\n"
+            context += f"```\n{error['message'][:1000]}\n```\n\n"
+        
+        context += """
+### COMMON FIXES TO APPLY:
+
+1. **TYPESCRIPT ERRORS**: Use `string` not `str`, `number` not `int`, `boolean` not `bool`
+2. **MODULE NOT FOUND**: Check import paths, ensure all dependencies in package.json
+3. **SYNTAX ERRORS**: Check for missing brackets, semicolons, proper JSX syntax
+4. **BASH/PATH ERRORS**: NO parentheses (), brackets [], spaces in file paths!
+5. **BUILD ERRORS**: Ensure next.config.mjs (not .ts), all config files present
+6. **PYTHON ERRORS**: Check imports, ensure all packages in requirements.txt
+7. **CORS ERRORS**: Backend must have CORS middleware with allow_origins=["*"]
+
+### CRITICAL REMINDERS:
+- Use ONLY alphanumeric, hyphens, underscores in file paths
+- layout.tsx MUST import './globals.css'
+- globals.css MUST start with @tailwind directives
+- next.config.mjs NOT next.config.ts
+- Backend must have health check at GET /
+- All TypeScript files need 'use client' for interactive components
+
+FIX ALL ISSUES AND REGENERATE COMPLETE, WORKING CODE.
+"""
+        return context
 
 
 # Singleton
