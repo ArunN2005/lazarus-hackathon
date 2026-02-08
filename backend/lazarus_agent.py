@@ -1209,22 +1209,133 @@ except:
                 print(f"[*] Node.js Backend Live at: {backend_url}")
                 
                 # ═══════════════════════════════════════════════════════════
-                # CHECK FOR FRONTEND (Next.js, React, Vue, etc.)
+                # COMPREHENSIVE FRONTEND/PROJECT DETECTION
+                # Detects: React, Vue, Next.js, Vite, Angular, Static HTML,
+                #          PHP, Flask templates, Django templates, and more
                 # ═══════════════════════════════════════════════════════════
                 frontend_dirs = []
-                for f in files:
-                    path = f['filename'].lower()
-                    if ('frontend' in path or 'client' in path or 'web' in path) and f['filename'].endswith('package.json'):
-                        frontend_dirs.append(os.path.dirname(f['filename']))
-                    elif 'next.config' in path or 'vite.config' in path:
-                        frontend_dirs.append(os.path.dirname(f['filename']))
+                frontend_type = "unknown"
+                has_static_html = False
+                static_html_dirs = set()
                 
-                # Deduplicate
+                for f in files:
+                    path = f['filename']
+                    path_lower = path.lower()
+                    basename = os.path.basename(path)
+                    dirname = os.path.dirname(path)
+                    
+                    # ───────────────────────────────────────────────────────────
+                    # JavaScript Framework Detection (Need npm build)
+                    # ───────────────────────────────────────────────────────────
+                    
+                    # Next.js
+                    if 'next.config' in basename.lower():
+                        frontend_dirs.append(dirname)
+                        frontend_type = "Next.js"
+                    
+                    # Vite (React, Vue, Svelte)
+                    elif 'vite.config' in basename.lower():
+                        frontend_dirs.append(dirname)
+                        frontend_type = "Vite"
+                    
+                    # Angular
+                    elif basename == 'angular.json':
+                        frontend_dirs.append(dirname)
+                        frontend_type = "Angular"
+                    
+                    # Vue CLI
+                    elif basename == 'vue.config.js':
+                        frontend_dirs.append(dirname)
+                        frontend_type = "Vue CLI"
+                    
+                    # Create React App
+                    elif basename == 'package.json' and ('frontend' in path_lower or 'client' in path_lower or 'web' in path_lower):
+                        frontend_dirs.append(dirname)
+                        frontend_type = "React/NPM"
+                    
+                    # Nuxt.js
+                    elif 'nuxt.config' in basename.lower():
+                        frontend_dirs.append(dirname)
+                        frontend_type = "Nuxt.js"
+                    
+                    # Gatsby
+                    elif basename == 'gatsby-config.js':
+                        frontend_dirs.append(dirname)
+                        frontend_type = "Gatsby"
+                    
+                    # SvelteKit
+                    elif basename == 'svelte.config.js':
+                        frontend_dirs.append(dirname)
+                        frontend_type = "SvelteKit"
+                    
+                    # ───────────────────────────────────────────────────────────
+                    # Static HTML Detection (Served directly by backend)
+                    # ───────────────────────────────────────────────────────────
+                    if path.endswith('.html'):
+                        # Common static directories
+                        static_patterns = ['public', 'static', 'views', 'templates', 'www', 'html', 'pages']
+                        for pattern in static_patterns:
+                            if pattern in path_lower:
+                                static_html_dirs.add(dirname)
+                                has_static_html = True
+                                break
+                        
+                        # Any HTML at root or in recognized folder
+                        if dirname and not has_static_html:
+                            static_html_dirs.add(dirname)
+                            has_static_html = True
+                    
+                    # ───────────────────────────────────────────────────────────
+                    # Template Engine Detection (Served by backend)
+                    # ───────────────────────────────────────────────────────────
+                    
+                    # EJS (Express)
+                    if path.endswith('.ejs'):
+                        has_static_html = True
+                        static_html_dirs.add(dirname)
+                    
+                    # Pug/Jade (Express)
+                    elif path.endswith('.pug') or path.endswith('.jade'):
+                        has_static_html = True
+                        static_html_dirs.add(dirname)
+                    
+                    # Handlebars (Express)
+                    elif path.endswith('.hbs') or path.endswith('.handlebars'):
+                        has_static_html = True
+                        static_html_dirs.add(dirname)
+                    
+                    # Jinja2 (Flask/Python)
+                    elif path.endswith('.jinja2') or path.endswith('.j2'):
+                        has_static_html = True
+                        static_html_dirs.add(dirname)
+                    
+                    # Django templates
+                    elif '/templates/' in path and path.endswith('.html'):
+                        has_static_html = True
+                        static_html_dirs.add(dirname)
+                    
+                    # PHP
+                    elif path.endswith('.php'):
+                        has_static_html = True
+                        static_html_dirs.add(dirname)
+                    
+                    # Ruby ERB
+                    elif path.endswith('.erb'):
+                        has_static_html = True
+                        static_html_dirs.add(dirname)
+                
+                # Deduplicate JS framework dirs
                 frontend_dirs = list(set(frontend_dirs))
+                
+                # Log what was detected
+                if has_static_html:
+                    static_dirs_str = ', '.join(list(static_html_dirs)[:3])
+                    print(f"[*] 📄 Static HTML/Templates Detected: {static_dirs_str}")
+                    print(f"[*] ℹ️  Static content will be served directly by the Node.js backend")
                 
                 if frontend_dirs:
                     frontend_dir = frontend_dirs[0]
-                    print(f"[*] 🎨 Frontend Detected: {frontend_dir}")
+                    print(f"[*] 🎨 JS Framework Detected: {frontend_type} at {frontend_dir}")
                     
                     # Install frontend dependencies
                     print(f"[*] Installing Frontend dependencies (npm install)...")
