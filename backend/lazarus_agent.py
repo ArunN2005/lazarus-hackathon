@@ -20,6 +20,53 @@ load_env()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 E2B_API_KEY = os.getenv("E2B_API_KEY")
 
+def sanitize_path(path: str) -> str:
+    """
+    Sanitizes file paths to be safe for bash shell commands.
+    Removes characters that break mkdir and other shell commands.
+    """
+    if not path:
+        return path
+    
+    # Replace problematic characters
+    replacements = {
+        '(': '',  # Remove parentheses - causes subshell
+        ')': '',
+        '[': '',  # Remove brackets - causes glob
+        ']': '',
+        '{': '',  # Remove braces - causes expansion
+        '}': '',
+        '@': '',  # Remove @ - causes issues
+        '#': '',  # Remove # - causes comments
+        '$': '',  # Remove $ - causes variable expansion
+        '&': '',  # Remove & - causes background
+        '*': '',  # Remove * - causes glob
+        '?': '',  # Remove ? - causes glob
+        '!': '',  # Remove ! - causes history expansion
+        '|': '',  # Remove | - causes pipe
+        ';': '',  # Remove ; - causes command separator
+        '<': '',  # Remove < - causes redirect
+        '>': '',  # Remove > - causes redirect
+        '`': '',  # Remove ` - causes command substitution
+        "'": '',  # Remove ' - causes quoting issues
+        '"': '',  # Remove " - causes quoting issues
+        ' ': '_',  # Replace spaces with underscores
+    }
+    
+    result = path
+    for char, replacement in replacements.items():
+        result = result.replace(char, replacement)
+    
+    # Remove any double underscores
+    while '__' in result:
+        result = result.replace('__', '_')
+    
+    # Remove any double slashes
+    while '//' in result:
+        result = result.replace('//', '/')
+    
+    return result
+
 class LazarusEngine:
     def __init__(self):
         self.api_key = GEMINI_API_KEY
@@ -671,15 +718,32 @@ This PR contains the **completely modernized** version of your legacy codebase.
             self.sandbox = Sandbox.create(timeout=1800)
             print(f"[*] Sandbox created successfully. ID: {self.sandbox.id if hasattr(self.sandbox, 'id') else 'N/A'}")
             
-            # Write ALL files
+            # Write ALL files (with path sanitization for bash compatibility)
             for file in files:
-                # Create directories if needed
-                dir_path = os.path.dirname(file['filename'])
-                if dir_path and dir_path not in [".", ""]:
-                        # We can't easily mkdir -p in sandbox file write, so we run a command
-                        self.sandbox.commands.run(f"mkdir -p {dir_path}")
+                # Sanitize the filename to prevent bash shell issues
+                safe_filename = sanitize_path(file['filename'])
                 
-                self.sandbox.files.write(file['filename'], file['content'])
+                # Log if path was modified
+                if safe_filename != file['filename']:
+                    print(f"  [!] Path sanitized: {file['filename']} -> {safe_filename}")
+                
+                # Create directories if needed
+                dir_path = os.path.dirname(safe_filename)
+                if dir_path and dir_path not in [".", ""]:
+                    try:
+                        # We can't easily mkdir -p in sandbox file write, so we run a command
+                        mkdir_result = self.sandbox.commands.run(f"mkdir -p '{dir_path}'")
+                        if mkdir_result.exit_code != 0:
+                            print(f"  [!] mkdir warning for {dir_path}: {mkdir_result.stderr}")
+                    except Exception as mkdir_err:
+                        print(f"  [!] mkdir failed for {dir_path}: {mkdir_err}")
+                        # Try alternative - just continue, file write might still work
+                        pass
+                
+                try:
+                    self.sandbox.files.write(safe_filename, file['content'])
+                except Exception as write_err:
+                    print(f"  [!] File write error for {safe_filename}: {write_err}")
             
             # Install Dependencies (Hackathon Mode: Smart Install)
             if entrypoint.endswith('.py'):

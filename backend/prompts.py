@@ -66,6 +66,38 @@ modernized_stack/
 └── docker-compose.yml       # Container orchestration (REQUIRED)
 
 ═══════════════════════════════════════════════════════════════════════════════
+⚠️ CRITICAL: SANDBOX COMPATIBILITY - FILE PATH RESTRICTIONS ⚠️
+═══════════════════════════════════════════════════════════════════════════════
+
+The sandbox runs in a bash shell. File paths with special characters will BREAK!
+
+🚫 FORBIDDEN CHARACTERS IN FILE/FOLDER NAMES:
+- NO parentheses: ( )
+- NO brackets: [ ] {{ }}
+- NO spaces
+- NO special chars: $ & * ? ! | ; < > ` ' "
+- NO @ or # symbols
+
+❌ WRONG FILE PATHS (WILL CRASH SANDBOX):
+- app/(auth)/login/page.tsx       ← Parentheses break bash!
+- app/[id]/page.tsx               ← Brackets break bash!
+- components/my component.tsx      ← Spaces break bash!
+- routes/@modal/page.tsx          ← @ symbol breaks bash!
+
+✅ CORRECT FILE PATHS:
+- app/auth/login/page.tsx         ← Use simple folder names
+- app/user-detail/page.tsx        ← Use hyphens for readability
+- app/dashboard/page.tsx          ← Simple alphanumeric names
+- components/user-card.tsx        ← Hyphens are safe
+- app/product_list/page.tsx       ← Underscores are safe
+
+DYNAMIC ROUTES - Use simple naming:
+- Instead of app/[id]/page.tsx    → app/detail/page.tsx (use URL params in code)
+- Instead of app/(group)/auth     → app/auth (just flatten it)
+
+ALWAYS USE: Only alphanumeric characters, hyphens (-), underscores (_), and dots (.)
+
+═══════════════════════════════════════════════════════════════════════════════
 SECTION 4: BACKEND REQUIREMENTS (FastAPI - PYTHON)
 ═══════════════════════════════════════════════════════════════════════════════
 
