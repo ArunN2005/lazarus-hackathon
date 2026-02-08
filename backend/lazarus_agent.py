@@ -439,7 +439,28 @@ class LazarusEngine:
             }};
             ```
 
-            **D. `app/globals.css`** - MUST start with:
+            **D. `app/layout.tsx`** - CRITICAL: This imports globals.css for Tailwind to work:
+            ```typescript
+            import type {{ Metadata }} from 'next';
+            import './globals.css';  // THIS LINE IS REQUIRED FOR CSS TO WORK
+
+            export const metadata: Metadata = {{
+              title: 'Resurrected App',
+              description: 'Modernized by Lazarus Engine',
+            }};
+
+            export default function RootLayout({{ children }}: {{ children: React.ReactNode }}) {{
+              return (
+                <html lang="en">
+                  <body className="bg-black text-white antialiased">
+                    {{children}}
+                  </body>
+                </html>
+              );
+            }}
+            ```
+
+            **E. `app/globals.css`** - MUST start with:
             ```css
             @tailwind base;
             @tailwind components;
@@ -448,7 +469,7 @@ class LazarusEngine:
             /* Add custom styles based on user preferences */
             ```
 
-            **E. `app/page.tsx`** - IMPLEMENT based on plan with proper API integration:
+            **F. `app/page.tsx`** - IMPLEMENT based on plan with proper API integration:
             ```typescript
             'use client';
             import {{ useState }} from 'react';
