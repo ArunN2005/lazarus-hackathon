@@ -1194,8 +1194,8 @@ Output format: Plain text architectural plan with clear sections.
                 for i in range(20):  # Try for 60 seconds
                     time.sleep(3)
                     try:
-                        # Check both common ports
-                        for port in [3000, 8000, 5000]:
+                        # Check ALL common Node.js ports (3001 is very common!)
+                        for port in [3000, 3001, 8000, 8080, 5000, 4000, 5001]:
                             check_script = f"""
 import urllib.request
 import urllib.error
