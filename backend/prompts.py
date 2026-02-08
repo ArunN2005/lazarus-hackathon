@@ -6,10 +6,15 @@ This module contains all prompts used by the Lazarus Engine.
 The core philosophy: COPY ALL ORIGINAL CODE, ONLY CHANGE STYLING.
 """
 
-def get_code_generation_prompt(plan: str, deep_scan_result: dict = None) -> str:
+def get_code_generation_prompt(plan: str, deep_scan_result: dict = None, memory_context: str = "") -> str:
     """
     Returns the ABSOLUTE PRESERVATION code generation prompt.
     Key principle: COPY every line of code, only enhance CSS/styling.
+    
+    Args:
+        plan: The modernization plan
+        deep_scan_result: Results from deep scanning the repository
+        memory_context: Past resurrection memory for this repository
     """
     
     # Build list of ALL files that MUST be output
@@ -89,6 +94,8 @@ DATABASE: {tech_stack.get('backend', {}).get('database', 'Unknown')}
 █  LAZARUS ENGINE - ABSOLUTE PRESERVATION MODE                                █
 █  VERSION: 6.0 - COPY EVERYTHING, ENHANCE APPEARANCE ONLY                   █
 ████████████████████████████████████████████████████████████████████████████████
+
+{memory_context if memory_context else ""}
 
 🚨 CRITICAL INSTRUCTION - READ CAREFULLY:
 ═══════════════════════════════════════════════════════════════════════════════

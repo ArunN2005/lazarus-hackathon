@@ -6,6 +6,11 @@ import time
 import ast
 from simple_env import load_env
 from prompts import get_code_generation_prompt
+from resurrection_memory import (
+    load_memory, record_attempt_start, record_failure, 
+    record_success, record_dependency_issue, record_decision,
+    get_memory_context_for_prompt, get_memory_summary
+)
 
 # Try to import E2B, handle failure
 try:
@@ -881,16 +886,26 @@ Output format: Plain text architectural plan with clear sections.
         # Use Gemini 3 Pro for complex reasoning
         return self._call_gemini(prompt, model="gemini-3-pro-preview")
 
-    def generate_code(self, plan: str, deep_scan_result: dict = None) -> dict:
+    def generate_code(self, plan: str, deep_scan_result: dict = None, repo_url: str = None) -> dict:
         """
         Returns info about the code to be generated (Multiple Files, Nested Structure).
         Uses PRESERVATION-FIRST prompt from prompts.py module.
         
         deep_scan_result: Contains existing codebase info for preservation.
+        repo_url: Repository URL for loading resurrection memory.
         """
+        # Load resurrection memory for this repository
+        memory_context = ""
+        if repo_url:
+            memory_context = get_memory_context_for_prompt(repo_url)
+            memory_summary = get_memory_summary(repo_url)
+            if memory_summary["total_attempts"] > 0:
+                print(f"[*] 🧠 Resurrection Memory Loaded: {memory_summary['total_attempts']} past attempts, {memory_summary['failed_attempts']} failures")
+        
         # Get the comprehensive prompt from the prompts module
         # Pass deep_scan_result for preservation context (existing code, database, etc.)
-        prompt = get_code_generation_prompt(plan, deep_scan_result)
+        # Pass memory_context for cross-session learning
+        prompt = get_code_generation_prompt(plan, deep_scan_result, memory_context)
         
         # Phase 2: Write Code -> Gemini 3 Pro (Needs Reasoning)
         response = self._call_gemini(prompt, model="gemini-3-pro-preview")
@@ -1569,6 +1584,9 @@ except Exception as e:
         def emit_debug(msg):
             return {"type": "debug", "content": msg}
 
+        # Record resurrection attempt start in memory
+        record_attempt_start(repo_url, None)
+        
         # 1. DEEP SCAN - Fetch ALL file contents for preservation
         yield emit_log("🔍 Initiating DEEP SCAN of Legacy Repository...")
         yield emit_log("📂 Fetching ALL file contents for preservation analysis...")
@@ -1579,6 +1597,9 @@ except Exception as e:
         tech_stack = deep_scan_result.get("tech_stack", {})
         must_preserve = deep_scan_result.get("must_preserve", [])
         files_analyzed = len(deep_scan_result.get("files", []))
+        
+        # Update memory with tech stack
+        record_attempt_start(repo_url, tech_stack)
         
         yield emit_debug(f"[DEBUG] Deep Scan Complete:\n  Files Analyzed: {files_analyzed}\n  Tech Stack: {tech_stack}\n  Must Preserve: {len(must_preserve)} items")
         
@@ -1620,11 +1641,11 @@ except Exception as e:
                     error_context = self._build_error_context(all_errors)
                     plan_with_error = plan + error_context
                     # Pass deep_scan_result for preservation context
-                    code_data = self.generate_code(plan_with_error, deep_scan_result)
+                    code_data = self.generate_code(plan_with_error, deep_scan_result, repo_url)
                 else:
                     yield emit_log("🔨 Synthesizing Enhanced Infrastructure (Preserving Core Logic)...")
                     # Pass deep_scan_result for preservation context
-                    code_data = self.generate_code(plan, deep_scan_result)
+                    code_data = self.generate_code(plan, deep_scan_result, repo_url)
                 
                 files = code_data.get('files', [])
                 entrypoint = code_data.get('entrypoint', 'modernized_stack/backend/main.py')
@@ -1659,10 +1680,12 @@ except Exception as e:
                         retry_count += 1
                         continue  # Retry
                     else:
+                        record_failure(repo_url, error_type, error_context[:200], f"Attempt {retry_count + 1}")
                         yield emit_log(f"❌ Auto-Heal Failed after {MAX_RETRIES + 1} attempts. Proceeding with partial result.")
                         break
                 else:
                     # Success!
+                    record_success(repo_url, decisions=["Resurrection completed successfully"], patterns_used=[f"Runtime: {runtime}", f"Entrypoint: {entrypoint}"])
                     yield emit_log("✅ Verifying System Integrity... All checks passed!")
                     break
                     
@@ -1680,6 +1703,7 @@ except Exception as e:
                     sandbox_logs = f"EXCEPTION: {error_str}"
                     continue
                 else:
+                    record_failure(repo_url, "EXCEPTION", error_str[:200], "Max retries exceeded")
                     yield emit_log(f"❌ Max retries exceeded. Error: {error_str[:100]}")
                     sandbox_logs = f"FATAL ERROR: {error_str}"
                     break
