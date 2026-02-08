@@ -1088,12 +1088,13 @@ Output format: Plain text architectural plan with clear sections.
             
         return list(detected)
 
-    def execute_in_sandbox(self, files: list, entrypoint: str, runtime: str = "python"):
+    def execute_in_sandbox(self, files: list, entrypoint: str, runtime: str = "python", deep_scan_result: dict = None):
         """
         Execute generated code in E2B sandbox.
         Supports both Python and Node.js runtimes.
         
         runtime: "python" or "node"
+        deep_scan_result: Original repository scan result for dependency detection
         """
         if not E2B_AVAILABLE or not E2B_API_KEY:
             return "E2B Sandbox not available (Dependencies or Key missing)."
@@ -1161,20 +1162,38 @@ Output format: Plain text architectural plan with clear sections.
                 if not entrypoint_dir:
                     entrypoint_dir = "."
                 
-                # Look for package.json - check MULTIPLE locations
-                package_json = next((f for f in files if f['filename'].endswith('package.json')), None)
+                # CRITICAL: Look for package.json in ORIGINAL deep_scan first (uses 'path' key)
+                # Then fall back to generated files (uses 'filename' key)
+                original_package = None
+                if deep_scan_result:
+                    original_files = deep_scan_result.get("files", [])
+                    original_package = next((f for f in original_files if f.get('path', '').endswith('package.json')), None)
+                    if original_package:
+                        print(f"[*] Found ORIGINAL package.json from repository scan: {original_package.get('path')}")
+                
+                # Also check generated files (fallback)
+                gen_package_json = next((f for f in files if f['filename'].endswith('package.json')), None)
                 
                 # Check for package.json in entrypoint directory specifically
                 entrypoint_package = next((f for f in files if f['filename'] == f"{entrypoint_dir}/package.json"), None)
                 
-                if package_json:
-                    package_dir = os.path.dirname(package_json['filename']) or "."
-                    print(f"[*] Found package.json in: {package_dir}")
+                # Use ORIGINAL package.json for dependencies, fall back to generated
+                package_source = original_package if original_package else gen_package_json
+                package_dir = entrypoint_dir  # Default to entrypoint dir
+                
+                if package_source:
+                    # Determine the directory
+                    if original_package:
+                        package_dir = os.path.dirname(original_package.get('path', '')) or "."
+                    elif gen_package_json:
+                        package_dir = os.path.dirname(gen_package_json.get('filename', '')) or "."
+                    
+                    print(f"[*] Found package.json - extracting dependencies...")
                     
                     # DYNAMIC DEPENDENCY DETECTION - Parse the package.json content!
                     try:
-                        # Get the content of package.json (it's in our generated files)
-                        package_content = package_json.get('content', '')
+                        # Get the content of package.json
+                        package_content = package_source.get('content', '')
                         if package_content:
                             import json as json_module
                             pkg_data = json_module.loads(package_content)
@@ -1183,20 +1202,20 @@ Output format: Plain text architectural plan with clear sections.
                             all_deps = deps + dev_deps
                             
                             if all_deps:
-                                print(f"[*] Detected dependencies from package.json: {', '.join(all_deps[:15])}{'...' if len(all_deps) > 15 else ''}")
-                                # Install ALL detected dependencies
+                                print(f"[*] 📦 Detected {len(all_deps)} dependencies: {', '.join(all_deps[:10])}{'...' if len(all_deps) > 10 else ''}")
+                                # Install ALL detected dependencies in entrypoint directory
                                 deps_str = ' '.join(all_deps)
-                                print(f"[*] Installing {len(all_deps)} dependencies dynamically...")
-                                install_result = self.sandbox.commands.run(f"cd {package_dir} && npm init -y && npm install {deps_str}", timeout=300)
+                                print(f"[*] Installing dependencies in {entrypoint_dir}...")
+                                install_result = self.sandbox.commands.run(f"cd {entrypoint_dir} && npm init -y && npm install {deps_str}", timeout=300)
                             else:
-                                print("[*] No dependencies found in package.json, running npm install anyway...")
-                                install_result = self.sandbox.commands.run(f"cd {package_dir} && npm install", timeout=300)
+                                print("[*] No dependencies found in package.json, installing common packages...")
+                                install_result = self.sandbox.commands.run(f"cd {entrypoint_dir} && npm init -y && npm install express mongoose cors dotenv bcrypt multer node-fetch xlsx cookie-parser", timeout=300)
                         else:
-                            print("[*] Installing Node.js dependencies (npm install)...")
-                            install_result = self.sandbox.commands.run(f"cd {package_dir} && npm install", timeout=300)
+                            print("[*] Package.json has no content, installing common packages...")
+                            install_result = self.sandbox.commands.run(f"cd {entrypoint_dir} && npm init -y && npm install express mongoose cors dotenv bcrypt multer node-fetch xlsx cookie-parser", timeout=300)
                     except Exception as pkg_err:
-                        print(f"[!] Error parsing package.json: {pkg_err}, falling back to npm install...")
-                        install_result = self.sandbox.commands.run(f"cd {package_dir} && npm install", timeout=300)
+                        print(f"[!] Error parsing package.json: {pkg_err}, installing common packages...")
+                        install_result = self.sandbox.commands.run(f"cd {entrypoint_dir} && npm init -y && npm install express mongoose cors dotenv bcrypt multer node-fetch xlsx cookie-parser", timeout=300)
                     
                     if install_result.exit_code != 0:
                         print(f"[!] npm install warning: {install_result.stderr[:200] if install_result.stderr else 'No stderr'}")
@@ -1697,7 +1716,7 @@ except Exception as e:
                 
                 # 3. Execution (Pass runtime for Node.js vs Python handling)
                 yield emit_log("Booting Neural Sandbox Environment...")
-                sandbox_logs = self.execute_in_sandbox(files, entrypoint, runtime)
+                sandbox_logs = self.execute_in_sandbox(files, entrypoint, runtime, deep_scan_result)
                 yield emit_debug(f"[DEBUG] Sandbox Output:\n{sandbox_logs}")
                 
                 # 4. Comprehensive Error Detection
